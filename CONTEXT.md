@@ -746,3 +746,248 @@ FugginNAS/
 - Multi-node / distributed setups
 - Encryption (future consideration)
 - Notifications / alerting (future consideration)
+
+## Goal
+
+Upgrade `ai-config` to serve as a unified, token-efficient AI workflow configuration hub for Claude Code, Codex CLI, and GitHub Copilot — incorporating context virtualization, persistent memory, structured skills, and a cross-repo bootstrap.
+
+---
+
+## Tools Being Integrated
+
+### 1. context-mode (`mksglu/context-mode`)
+
+**What it is:** Context virtualization layer. Sandboxes tool output before it enters the context window.  
+**Key stat:** 315 KB → 5.4 KB (98% reduction). Tracks all tool events in SQLite with FTS5/BM25 search.  
+**Platform support:** 14 platforms including Claude Code, Codex CLI, Copilot, Cursor.  
+**Install:** `npm install` + Claude Code plugin hooks (PreToolUse, PostToolUse, PreCompact, SessionStart)  
+**MCP tools exposed:** `ctx_execute`, `ctx_batch_execute`, `ctx_execute_file`, `ctx_index`, `ctx_search`, `ctx_fetch_and_index`, `ctx_stats`, `ctx_doctor`, `ctx_upgrade`, `ctx_purge`, `ctx_insight`  
+**License:** Elastic License 2.0 (source-available, no hosted service resale)  
+**Paradigm enforced:** "Think in Code" — agent writes scripts, only stdout enters context. Never reads 50 files raw.
+
+### 2. skills (`mattpocock/skills`)
+
+**What it is:** Curated SKILL.md library for Claude Code. Fixes the misalignment failure mode.  
+**Install:** `npx skills@latest add mattpocock/skills` (cherry-pick) or bulk clone  
+**Skills to adopt (token-efficiency priority):**
+
+- `caveman` — 75% token reduction mode (drops filler, keeps accuracy)
+- `grill-me` — Pre-implementation alignment interview
+- `grill-with-docs` — Challenges plan against CONTEXT.md + ADRs
+- `write-a-prd` — Structured PRD via interview
+- `tdd` — Red-green-refactor loop
+- `diagnose` — Disciplined debugging loop
+- `write-a-skill` — Meta: create new skills
+- `git-guardrails-claude-code` — Block destructive git ops  
+
+**Integration point:** Skills land in `~/.claude/skills/` globally or per-repo under `.claude/skills/`. The `ai-config` repo will vendor the ones above and symlink/copy on bootstrap.
+
+### 3. claude-mem (`thedotmack/claude-mem`)
+
+**What it is:** Claude Code plugin. Auto-captures everything Claude does, compresses via Claude Agent SDK, injects relevant context into future sessions.  
+**Architecture:** 5 lifecycle hooks (SessionStart → UserPromptSubmit → PostToolUse → Summary → SessionEnd) + SQLite + Chroma vector DB + Express worker on port 37777.  
+**Install:** `/plugin marketplace add thedotmack/claude-mem && /plugin install claude-mem`  
+**Scope:** Claude Code + Gemini CLI + Codex (Codex hooks added in recent releases). NOT natively Copilot.  
+**Memory search:** `mem-search` skill auto-invokes when asking about history. Two-step: `search()` → get IDs → `get_observations(ids=[...])`.  
+**Note:** `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` should be set to prevent conflict with Claude Code's built-in auto-memory.  
+**Decision:** Use for Claude Code sessions. For cross-agent use, see MemPalace below.
+
+### 4. MemPalace (`MemPalace/mempalace`)
+
+**What it is:** Local-first, verbatim-storage AI memory system. Stores conversations as text → ChromaDB vector search. 96.6% R@5 on LongMemEval (raw, zero API).  
+**Architecture:** Hierarchical palace (people/projects → wings → rooms → drawers). 29 MCP tools.  
+**Cross-agent support:** Claude Code, Codex CLI, Copilot (via fork or MCP), Gemini CLI. Normalizes session formats from all.  
+**Install:** `pip install mempalace` + `mempalace mine` + MCP config per agent  
+**Claude Code hooks:** Two hooks (periodic save + pre-compaction save)  
+**Decision for ai-config:** MemPalace is the **cross-agent memory layer**. claude-mem is Claude Code-specific session memory. They are complementary:
+
+- `claude-mem` = real-time session capture for Claude Code
+- `MemPalace` = durable, cross-agent, queryable long-term memory
+
+---
+
+## Memory Strategy: claude-mem vs MemPalace
+
+| Concern | claude-mem | MemPalace |
+| --- | --- | --- |
+| Real-time session capture | ✅ | ❌ (mine after) |
+| Cross-agent (Codex, Copilot) | Partial | ✅ |
+| Verbatim storage | ❌ (compressed) | ✅ |
+| Vector search | Chroma | Chroma |
+| MCP tools | 4 | 29 |
+| Local web UI | ✅ (port 37777) | ✅ |
+| Requires API key | No (local Sonnet) | No (raw mode) |
+| Best for | Claude Code sessions | Long-term cross-session knowledge |
+
+**Recommendation:** Deploy both. claude-mem handles live sessions; MemPalace handles the durable knowledge base. Run `mempalace mine ~/.claude-mem/transcripts/` periodically to migrate claude-mem captures into MemPalace.
+
+---
+
+## 6-Step Implementation Plan
+
+### Step 1 — Audit & Scaffold `ai-config` repo structure
+
+**Scope:** Add directory skeleton that all tools will populate. No tool installs yet.  
+**Deliverable:**
+
+```text
+ai-config/
+├── CONTEXT.md                  ← this file (never overwrite)
+├── bootstrap.ps1               ← cross-platform setup (OS detection, all tools)
+├── uninstall.ps1               ← mirrors bootstrap; strips injected blocks, removes global installs
+├── agents/
+│   ├── CLAUDE.md               ← Claude Code global instructions
+│   ├── AGENTS.md               ← Codex CLI global instructions
+│   └── copilot-instructions.md ← Copilot global instructions
+├── plugins/
+│   ├── context-mode/           ← submodule or install script
+│   └── claude-mem/             ← plugin install reference
+├── memory/
+│   └── mempalace/              ← config + mine scripts
+├── skills/
+│   └── mattpocock/             ← vendored skill files
+└── templates/
+    ├── CONTEXT.md              ← blank CONTEXT.md template for new repos
+    ├── ai-task.md              ← .github/ISSUE_TEMPLATE/ai-task.md for new repos
+    ├── pull_request_template.md← .github/pull_request_template.md for new repos
+    └── adr-template.md         ← docs/adr/adr-template.md for new repos
+```
+
+**Token cost:** Low (no tool installs, just structure)
+
+### Step 2 — Install & configure context-mode
+
+**Scope:** Install context-mode globally. Add CLAUDE.md routing block. Verify hooks register.  
+**Actions:**
+
+- `git clone https://github.com/mksglu/context-mode.git` into `~/.claude/plugins/` or via plugin marketplace
+- Confirm hooks: PreToolUse, PostToolUse, PreCompact, SessionStart
+- Add `configs/claude-code/CLAUDE.md` content to `ai-config/agents/CLAUDE.md`
+- Add Codex/Copilot config blocks from context-mode `configs/` directory
+- Validate: `ctx_doctor` reports green
+**Token cost:** Medium (one-time install)
+
+### Step 3 — Vendor mattpocock skills
+
+**Scope:** Selectively install the 8 priority skills. Wire into CLAUDE.md skill discovery.  
+**Actions:**
+
+- `npx skills@latest add caveman grill-me grill-with-docs write-a-prd tdd diagnose write-a-skill git-guardrails-claude-code`
+- Copy to `ai-config/skills/mattpocock/` for repo-managed distribution
+- Add skill reference block to `agents/CLAUDE.md` and `agents/AGENTS.md`
+- Test `caveman` mode: verify 75% token reduction in output
+**Token cost:** Low (file copies)
+
+### Step 4 — Install claude-mem (Claude Code memory)
+
+**Scope:** Install claude-mem plugin. Set env vars to avoid conflict with built-in memory.  
+**Actions:**
+
+- `/plugin marketplace add thedotmack/claude-mem && /plugin install claude-mem`
+- Set `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in Claude settings
+- Configure `~/.claude-mem/settings.json` (model, port 37777, data dir)
+- Verify worker starts: `npx claude-mem worker:status`
+- Add `mem-search` skill to `ai-config/skills/`
+**Token cost:** Low after install
+
+### Step 5 — Install & configure MemPalace (cross-agent memory)
+
+**Scope:** Install MemPalace. Mine existing sessions. Configure MCP for Claude Code + Codex + Copilot.  
+**Actions:**
+
+- `pip install mempalace`
+- `mempalace mine ~/.claude/projects/ --mode convos` (Claude Code sessions)
+- Add MCP config block to `agents/CLAUDE.md`, `agents/AGENTS.md`, `.vscode/mcp.json`
+- Configure Claude Code hooks (periodic save + pre-compact)
+- Add `mempalace wake-up` call to session start documentation
+- Store MemPalace MCP config in `ai-config/memory/mempalace/`
+**Token cost:** Low (config files)
+
+### Step 6 — Extend bootstrap.ps1 for cross-repo deployment
+
+**Scope:** Update `bootstrap.ps1` to propagate the full stack to any target repo.  
+**Existing behavior:** Default = overwrite managed files; `-FirstRun` = preserve existing; `CONTEXT.md` = never overwrite.  
+**New behavior adds:**
+
+- Install context-mode if not present
+- Copy/symlink skills from `ai-config/skills/` → `~/.claude/skills/`
+- Install claude-mem if not present (detect via plugin list)
+- Copy MemPalace MCP config blocks into target repo's CLAUDE.md / AGENTS.md
+- Inject agent handoff block (see below) into CLAUDE.md
+- Validate with `ctx_doctor` + `npx claude-mem worker:status`
+**Token cost:** One-time per new repo
+
+---
+
+## Agent Handoff Protocol (inject into all CLAUDE.md / AGENTS.md / copilot-instructions.md)
+
+All three agents follow the same handoff contract. Tooling syntax differs per agent.
+
+```markdown
+
+## Agent Handoff
+
+### On session start / before any task:
+1. Retrieve session context:
+   - Claude Code: `ctx_search(queries: ["recent work", "current task", "blockers"])`
+   - Codex CLI: `ctx_search(...)` (context-mode Codex adapter)
+   - Copilot: `mempalace_search("project: <repo-name> recent work blockers")` via MCP
+2. Retrieve durable memory:
+   - All agents: `mempalace_search("project: <repo-name> recent decisions")`
+3. State your understanding of current state in one sentence before proceeding.
+
+### Before ending any task / before context compaction:
+1. All agents: `mempalace_diary_write` — record what was done, decisions made, open blockers
+2. Claude Code + Codex: `ctx_index` any output worth preserving in FTS5
+3. End every response with a one-paragraph handoff summary:
+   - What was completed
+   - What is next
+   - Any blockers or open questions
+
+### Cross-agent handoff (switching agents mid-task):
+1. Outgoing agent writes handoff via `mempalace_diary_write` with tag `handoff:<target-agent>`
+2. Incoming agent runs `mempalace_search("handoff:<source-agent>")` before first response
+3. Incoming agent confirms: "Resuming from [source] handoff: [summary]"
+```
+
+---
+
+## Token Efficiency Rules (global, all agents)
+
+1. **context-mode is mandatory** — never read large files raw; use `ctx_execute` sandbox
+2. **caveman mode** for implementation tasks — activate with `/caveman`
+3. **Model selection by agent:**
+
+   | Task type | Claude Code | Codex CLI | Copilot |
+   | --- | --- | --- | --- |
+   | Rename, format, lookup, repetitive | Haiku | `o4-mini` | GPT-4o mini |
+   | Default (edits, tests, refactor, explain) | Sonnet | `o4-mini` | GPT-4o |
+   | Complex multi-file architecture, deep debug | Opus | `o3` | GPT-4o (with extended context) |
+
+4. **`/effort low`** (Claude Code) for straightforward tasks to reduce thinking-token budget
+5. **Compact proactively** — before context is overloaded, not after
+6. **New session for unrelated tasks** — don't extend long threads
+7. **Codex-specific:** prefer `--no-projectdoc` flag on simple tasks to skip AGENTS.md injection overhead
+8. **Copilot-specific:** scope MCP tool calls; don't invoke MemPalace on every response — only on history/context queries
+
+---
+
+## Resolved Decisions
+
+- **context-mode install:** `npm install -g` globally. Bootstrap checks for existing install before running.
+- **claude-mem port 37777:** No conflict. Port is localhost-only; used by hook scripts → background worker (not user-facing). Note if another service claims it later.
+- **MemPalace Python env:** `venv` on all Debian/Devuan boxes. Bootstrap creates `~/.venvs/mempalace/` and activates before install.
+- **Copilot memory:** Core `MemPalace/mempalace` + manual `.vscode/mcp.json` config block in bootstrap. Avoids dependency on unmaintained fork.
+- **CONTEXT.md on bootstrap:** Prompt user interactively if existing file found. Options: merge (append new sections), skip, or overwrite.
+- **Skills deployment:** Global only → `~/.claude/skills/`. Bootstrap copies from `ai-config/skills/mattpocock/`.
+- **Bootstrap OS:** Single `bootstrap.ps1` with internal OS detection. Branches for Linux (apt/pip/bash paths) vs Windows/WSL.
+
+---
+
+## Files That Must Never Be Overwritten by Bootstrap
+
+- `CONTEXT.md` (this file)
+- `agents/CLAUDE.md` (if `-FirstRun`)
+- `agents/AGENTS.md` (if `-FirstRun`)
+- `~/.claude-mem/settings.json`
+- `memory/mempalace/` configs

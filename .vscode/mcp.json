@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "mempalace": {
+      "command": "python",
+      "args": ["-m", "mempalace.mcp_server"],
+      "env": {
+        "VIRTUAL_ENV": "~/.venvs/mempalace",
+        "PATH": "~/.venvs/mempalace/bin:$PATH"
+      }
+    }
+  }
+}
