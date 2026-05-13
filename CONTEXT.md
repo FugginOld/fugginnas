@@ -112,7 +112,7 @@ FugginNAS/
   - LUKS encryption per disk? Yes / No (keyfile path: /etc/nonraid/luks-keyfile)
   - Turbo write mode: Off (default) | On (md_write_method=1)
   - Parity check schedule: Quarterly (default, matches nonraid timer) | Monthly | Off
-  - Shows nmdctl create will be run interactively post-apply (SSE terminal)
+  - nmdctl create driven non-interactively via pre-answered flags (no SSE terminal needed)
 
 [ 6. Cache Mover ]
   - Mover schedule: daily time picker (default 03:00)
@@ -128,7 +128,7 @@ FugginNAS/
   - NFS options: allowed hosts CIDR (default 192.168.0.0/16), ro/rw
   - Can add multiple shares
 
-[ 7. Summary + Apply ]
+[ 8. Summary + Apply ]
   - Shows every file that will be written (diff view)
   - Files (SnapRAID path): /etc/fstab additions, /etc/snapraid.conf, systemd timer units,
            /etc/samba/smb.conf additions, /etc/exports additions,
@@ -141,7 +141,7 @@ FugginNAS/
   - Single "Apply All" button
   - Streams apply output to terminal pane (SSE)
 
-[ 8. Status Dashboard ]
+[ 9. Status Dashboard ]
   - Pool: mount status, used/free per disk, cache fill %
   - Parity panel (adapts to backend):
       SnapRAID: last sync time/result, last scrub, dirty file count
@@ -991,3 +991,14 @@ All three agents follow the same handoff contract. Tooling syntax differs per ag
 - `agents/AGENTS.md` (if `-FirstRun`)
 - `~/.claude-mem/settings.json`
 - `memory/mempalace/` configs
+
+---
+
+## FugginNAS Implementation Decisions (2026-05-13)
+
+Resolved during `/grill-with-docs` session.
+
+- **Wizard screen count:** 9 screens. Welcome(1) → Backend(2) → Drives(3) → Pool(4) → 5a SnapRAID | 5b NonRAID → Mover(6) → Shares(7) → Summary/Apply(8) → Dashboard(9). Label `[ 7. Summary + Apply ]` was a duplicate — corrected to 8.
+- **nmdctl create:** Non-interactive. Research `nmdctl create` flags to drive array creation without a terminal prompt. No SSE terminal needed for this step.
+- **Security model:** Localhost-only bind (`127.0.0.1`) + single shared password set during `install.sh`. Password stored in `state.json` (hashed). UI shows a warning banner if accessed from non-localhost.
+- **MVP scope:** Build Storage Backend selection screen + skeleton routing for all three paths first, then fill in the SnapRAID path end-to-end as the tracer bullet. NonRAID and MergerFS-only follow in later milestones.

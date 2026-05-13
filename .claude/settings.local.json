@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "Read(//c/Users/Joe/.claude/skills/zoom-out/**)",
+      "Read(//c/Users/Joe/.agents/skills/zoom-out/**)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/test_backend.py -x --tb=short)",
+      "Bash(python -m pytest tests/test_backend.py -v)",
+      "Bash(python -m pytest tests/test_drives.py -x --tb=line)",
+      "Bash(python -m pytest tests/test_drives.py -v)",
+      "Bash(python -m pytest tests/test_pool.py -x --tb=line)",
+      "Bash(python -m pytest tests/test_pool.py -v)",
+      "Bash(python -m pytest tests/test_snapraid.py -x --tb=line)",
+      "Bash(python -m pytest tests/test_snapraid.py -v)",
+      "Bash(python -m pytest tests/test_mover.py -v)",
+      "Bash(python -m pytest tests/test_shares.py -v)",
+      "Bash(python -m pytest tests/test_summary_apply.py -v)",
+      "Bash(python -m pytest tests/test_status.py -v)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_frontend.py -x --tb=line)",
+      "Bash(python -m pytest tests/test_frontend.py -v)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/test_frontend.py -k \"pool or snapraid or mover or shares or summary or status\" --tb=no -q)",
+      "Bash(python -m pytest tests/test_frontend.py -k \"pool or snapraid or mover or shares or summary or status\" --tb=short -q)",
+      "Bash(python -m pytest --tb=short -q)",
+      "Bash(python -m pytest tests/test_nonraid_utils.py tests/test_nonraid.py tests/test_frontend.py -k \"nonraid\" --tb=no -q)",
+      "Bash(python -m pytest tests/test_frontend.py -k \"welcome or state_backend\" tests/test_install_sh.py --tb=no -q)",
+      "Bash(python -m pytest tests/test_install_sh.py --tb=no -q)",
+      "Bash(python -m pytest tests/test_auth.py tests/test_apply_backup.py tests/test_snapraid_dryrun.py --tb=no -q)",
+      "Bash(python -m pytest tests/test_auth.py tests/test_snapraid_dryrun.py --tb=no -q)",
+      "Bash(python -m pytest tests/test_auth.py --tb=short -q)",
+      "Bash(python -m pytest tests/test_apply_backup.py --tb=short -q)",
+      "Bash(python -m pytest tests/test_snapraid_dryrun.py --tb=short -q)"
+    ]
+  }
+}
