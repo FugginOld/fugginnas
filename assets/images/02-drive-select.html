@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — Drive Selection</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">setup wizard</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Wizard Steps</div>
+    <div class="step-item active"><div class="step-num">1</div>Drive Selection</div>
+    <div class="step-item"><div class="step-num">2</div>Storage Backend</div>
+    <div class="step-item"><div class="step-num">3</div>Pool Config</div>
+    <div class="step-item"><div class="step-num">4</div>SnapRAID / NonRAID</div>
+    <div class="step-item"><div class="step-num">5</div>Cache Mover</div>
+    <div class="step-item"><div class="step-num">6</div>Shares</div>
+    <div class="step-item"><div class="step-num">7</div>Summary &amp; Apply</div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick">
+      <button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button>
+      <div class="tdrop" id="tdrop"></div>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">Select Drives</div>
+      <div class="tb-sub">Step 1 of 7 &mdash; choose drives to include in the pool</div>
+    </div>
+    <div class="tr">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="pill i"><div class="pulse"></div>Setup Mode</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="stats s4">
+      <div class="sc"><div class="sl">Drives Found</div><div class="sv">6</div><div class="ss">5 HDD &middot; 1 NVMe</div></div>
+      <div class="sc"><div class="sl">Selected</div><div class="sv ok">4</div><div class="ss">+ 1 NVMe cache</div></div>
+      <div class="sc"><div class="sl">Total Selected</div><div class="sv">16.3<span style="font-size:13px;color:var(--ts)">TB</span></div><div class="ss">across 5 drives</div></div>
+      <div class="sc"><div class="sl">System Drive</div><div class="sv" style="font-size:13px;padding-top:4px">/dev/nvme0n1</div><div class="ss">excluded automatically</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Available Drives</div>
+        <div class="pa">
+          <button class="btn" onclick="selAll(true)">Select All</button>
+          <button class="btn" onclick="selAll(false)">Clear</button>
+        </div>
+      </div>
+      <table class="tbl" id="driveTable">
+        <thead>
+          <tr><th style="width:36px"></th><th>Device</th><th>Size</th><th>Type</th><th>RPM</th><th>Model</th><th>Mount</th><th>Health</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" checked onchange="updateCount()" style="accent-color:var(--ac)"></td>
+            <td>/dev/sdb</td><td>4.0 TB</td><td>HDD</td><td>7200</td><td style="color:var(--ts)">WDC WD40EFAX-68</td><td style="color:var(--td)">—</td>
+            <td><span class="slot-ok"><span class="sdot"></span>SMART OK</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked onchange="updateCount()" style="accent-color:var(--ac)"></td>
+            <td>/dev/sdc</td><td>4.0 TB</td><td>HDD</td><td>7200</td><td style="color:var(--ts)">WDC WD40EFAX-68</td><td style="color:var(--td)">—</td>
+            <td><span class="slot-ok"><span class="sdot"></span>SMART OK</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked onchange="updateCount()" style="accent-color:var(--ac)"></td>
+            <td>/dev/sdd</td><td>6.0 TB</td><td>HDD</td><td>5400</td><td style="color:var(--ts)">ST6000VN001-3BB104</td><td style="color:var(--td)">—</td>
+            <td><span class="slot-ok"><span class="sdot"></span>SMART OK</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked onchange="updateCount()" style="accent-color:var(--ac)"></td>
+            <td>/dev/sde</td><td>6.0 TB</td><td>HDD</td><td>5400</td><td style="color:var(--ts)">ST6000VN001-3BB104</td><td style="color:var(--td)">—</td>
+            <td><span class="slot-ok"><span class="sdot"></span>SMART OK</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked onchange="updateCount()" style="accent-color:var(--ac)"></td>
+            <td>/dev/nvme1n1</td><td>256 GB</td><td>NVMe SSD</td><td>—</td><td style="color:var(--ts)">WDC WDS250G2B0C</td><td style="color:var(--td)">—</td>
+            <td><span class="slot-ok"><span class="sdot"></span>SMART OK</span></td>
+          </tr>
+          <tr style="opacity:.45">
+            <td><input type="checkbox" disabled style="accent-color:var(--ac)"></td>
+            <td>/dev/nvme0n1</td><td>512 GB</td><td>NVMe SSD</td><td>—</td><td style="color:var(--ts)">Samsung 970 EVO</td><td style="color:var(--ok)">/</td>
+            <td><span class="slot-ok"><span class="sdot"></span>system</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notice" id="selNotice">5 drives selected &nbsp;·&nbsp; 20.3 TB total</div>
+
+    <div class="wz-actions">
+      <button class="btn ac">Next: Storage Backend →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+function updateCount(){
+  const boxes=document.querySelectorAll('#driveTable input[type=checkbox]:not(:disabled)');
+  const n=[...boxes].filter(b=>b.checked).length;
+  document.getElementById('selNotice').textContent=`${n} drive${n!==1?'s':''} selected`;
+}
+function selAll(v){document.querySelectorAll('#driveTable input[type=checkbox]:not(:disabled)').forEach(b=>b.checked=v);updateCount();}
+const themes=[{id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},{id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},{id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},{id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},{id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},{id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},{id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},{id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},{id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},{id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'}];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

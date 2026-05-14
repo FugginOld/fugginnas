@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — UI Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+<style>
+.idx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.idx-card{border:1px solid var(--bdr);background:var(--sur);padding:14px 16px;border-radius:var(--r);text-decoration:none;display:block;color:inherit;transition:border-color .15s}
+.idx-card:hover{border-color:var(--ac)}
+.idx-num{font-family:var(--fm);font-size:10px;color:var(--td);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.idx-title{font-family:var(--fp);font-size:13px;color:var(--ac);margin-bottom:5px;font-weight:600}
+.idx-desc{font-family:var(--fm);font-size:10px;color:var(--ts);line-height:1.6}
+.idx-tags{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}
+.itag{font-family:var(--fm);font-size:9px;padding:2px 7px;border:1px solid var(--bdr);color:var(--td);border-radius:var(--r);text-transform:uppercase;letter-spacing:.5px}
+.itag.w{border-color:rgba(224,123,0,.4);color:var(--ac)}
+.itag.d{border-color:rgba(61,186,111,.3);color:var(--ok)}
+.itag.n{border-color:rgba(74,158,245,.3);color:#4a9ef5}
+.itag.t{border-color:rgba(189,147,249,.3);color:#bd93f9}
+.idx-sep{font-family:var(--fm);font-size:9px;color:var(--td);text-transform:uppercase;letter-spacing:1.5px;padding:6px 0 8px;border-bottom:1px solid var(--bdr);margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">UI mockups</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Quick Links</div>
+    <div class="nav-item" onclick="location.href='01-dashboard.html'"><span>Dashboard</span></div>
+    <div class="nav-item" onclick="location.href='02-drive-select.html'"><span>Wizard: Start</span></div>
+    <div class="nav-item" onclick="location.href='12-theme-showcase.html'"><span>Theme Showcase</span></div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick"><button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button><div class="tdrop" id="tdrop"></div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">UI Mockups</div>
+      <div class="tb-sub">Simulated HTML screenshots of the FugginNAS SPA &mdash; open any file in a browser</div>
+    </div>
+    <div class="tr"><div class="clock" id="clock">--:--:--</div></div>
+  </div>
+
+  <div class="content">
+
+    <div class="idx-sep">Dashboard</div>
+    <div class="idx-grid" style="margin-bottom:24px">
+      <a class="idx-card" href="01-dashboard.html">
+        <div class="idx-num">01</div>
+        <div class="idx-title">Status Dashboard</div>
+        <div class="idx-desc">Pool usage, SnapRAID / NonRAID toggle view, live sync status, Docker containers, shares, system log terminal, theme picker.</div>
+        <div class="idx-tags"><span class="itag d">dashboard</span><span class="itag t">theme picker</span><span class="itag n">backend toggle</span></div>
+      </a>
+    </div>
+
+    <div class="idx-sep">Setup Wizard &mdash; SnapRAID Path</div>
+    <div class="idx-grid" style="margin-bottom:24px">
+      <a class="idx-card" href="02-drive-select.html">
+        <div class="idx-num">02</div>
+        <div class="idx-title">Drive Selection</div>
+        <div class="idx-desc">Step 1 of 7 — select drives to include, SMART health, drive type, exclude system drive.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="03-backend-select.html">
+        <div class="idx-num">03</div>
+        <div class="idx-title">Storage Backend</div>
+        <div class="idx-desc">Step 2 of 7 — choose SnapRAID, NonRAID, or MergerFS-only with feature comparison table.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="04-pool-config.html">
+        <div class="idx-num">04</div>
+        <div class="idx-title">Pool Configuration</div>
+        <div class="idx-desc">Step 3 of 7 — mount points, data drives, write policy, MergerFS options.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="05-snapraid-config.html">
+        <div class="idx-num">05</div>
+        <div class="idx-title">SnapRAID Configuration</div>
+        <div class="idx-desc">Step 4 of 7 — parity mode, parity drive, sync schedule, scrub plan, config preview.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="06-mover-config.html">
+        <div class="idx-num">06</div>
+        <div class="idx-title">Cache Mover</div>
+        <div class="idx-desc">Step 5 of 7 — mover schedule, minimum file age, free space threshold, script preview.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="07-shares-config.html">
+        <div class="idx-num">07</div>
+        <div class="idx-title">Shares Configuration</div>
+        <div class="idx-desc">Step 6 of 7 — add SMB / NFS / both shares, guest access, NFS host ACLs, inline add form.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+      <a class="idx-card" href="08-summary-apply.html">
+        <div class="idx-num">08</div>
+        <div class="idx-title">Summary &amp; Apply</div>
+        <div class="idx-desc">Step 7 of 7 — config summary, file manifest, SSE streaming terminal. Click Apply to demo.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span></div>
+      </a>
+    </div>
+
+    <div class="idx-sep">Setup Wizard &mdash; NonRAID Path (steps 4–5 diverge)</div>
+    <div class="idx-grid" style="margin-bottom:24px">
+      <a class="idx-card" href="09-nonraid-roles.html">
+        <div class="idx-num">09</div>
+        <div class="idx-title">NonRAID — Drive Roles</div>
+        <div class="idx-desc">Step 4 of 8 — assign parity / data / skip roles per drive; parity mode selector; role summary.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span><span class="itag n">nonraid</span></div>
+      </a>
+      <a class="idx-card" href="10-nonraid-prep.html">
+        <div class="idx-num">10</div>
+        <div class="idx-title">NonRAID — Disk Prep</div>
+        <div class="idx-desc">Step 5 of 8 — sgdisk + mkfs commands per role, nmdctl create guidance, confirmation checkbox gate.</div>
+        <div class="idx-tags"><span class="itag w">wizard</span><span class="itag n">nonraid</span></div>
+      </a>
+    </div>
+
+    <div class="idx-sep">Reference</div>
+    <div class="idx-grid">
+      <a class="idx-card" href="12-theme-showcase.html">
+        <div class="idx-num">12</div>
+        <div class="idx-title">Theme Showcase</div>
+        <div class="idx-desc">All 10 Linux DE-inspired themes: color palettes, live mini-panel previews, click to apply globally.</div>
+        <div class="idx-tags"><span class="itag t">themes</span></div>
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+const themes=[{id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},{id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},{id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},{id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},{id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},{id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},{id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},{id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},{id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},{id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'}];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

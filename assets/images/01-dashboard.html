@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+<style>
+.arr-bar{display:flex;align-items:center;gap:8px;padding:8px 13px;border-bottom:1px solid var(--bdr);background:var(--ele)}
+.ameta{font-family:var(--fm);font-size:10px;color:var(--ts)}
+.cprog{padding:9px 13px;border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:5px}
+.cm{display:flex;justify-content:space-between;font-family:var(--fm);font-size:10px;color:var(--ts)}
+.pview{display:none}.pview.on{display:block}
+</style>
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo">
+    <div class="sb-name">FugginNAS</div>
+    <div class="sb-ver">v0.2.0 &middot; debian</div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Overview</div>
+    <div class="nav-item active">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      Dashboard
+    </div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Storage</div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><ellipse cx="8" cy="4" rx="7" ry="2.5"/><path d="M1 4v4c0 1.38 3.13 2.5 7 2.5S15 9.38 15 8V4"/><path d="M1 8v4c0 1.38 3.13 2.5 7 2.5S15 13.38 15 12V8"/></svg>
+      Pool <span class="nbadge g">OK</span>
+    </div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="4" width="12" height="8" rx="1"/><path d="M5 4V2h6v2"/></svg>
+      Cache
+    </div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l7 4v6l-7 4-7-4V5l7-4z"/></svg>
+      <span id="navLbl">NonRAID</span>
+      <span class="nbadge g" id="navBadge">STARTED</span>
+    </div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Services</div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M4 7h8M4 10h5"/></svg>
+      Docker <span class="nbadge a">8 up</span>
+    </div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v8H2zM5 4V2h6v2"/></svg>
+      Shares
+    </div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">System</div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="2"/><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3z"/></svg>
+      Settings
+    </div>
+    <div class="nav-item">
+      <svg class="ni" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v2H1zM1 7h10v2H1zM1 11h12v2H1z"/></svg>
+      Logs
+    </div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick">
+      <button class="tbtn" onclick="toggleDrop()">
+        <div class="tswatch" id="tswatch"></div>
+        <span class="tlbl" id="tlbl">dark-industrial</span>
+        <span style="opacity:.5;font-size:9px">&#9650;</span>
+      </button>
+      <div class="tdrop" id="tdrop"></div>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">Status Dashboard</div>
+      <div class="btog">
+        <button class="bbtn on" id="bNR" onclick="setBackend('nonraid')">NonRAID</button>
+        <button class="bbtn" id="bSR" onclick="setBackend('snapraid')">SnapRAID</button>
+      </div>
+    </div>
+    <div class="tr">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="pill g"><div class="pulse"></div>Pool Healthy</div>
+      <div class="pill g" id="parityPill"><div class="pulse"></div><span id="parityPillLbl">Array Started</span></div>
+      <div class="pill g"><div class="pulse"></div>Docker Running</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="stats">
+      <div class="sc">
+        <div class="sl">Pool Used</div>
+        <div class="sv">14.2<span style="font-size:13px;color:var(--ts)">TB</span></div>
+        <div class="ss">of 24.0 TB &middot; 59% full</div>
+      </div>
+      <div class="sc">
+        <div class="sl">Cache Used</div>
+        <div class="sv">312<span style="font-size:13px;color:var(--ts)">GB</span></div>
+        <div class="ss">of 1.0 TB &middot; 31% full</div>
+      </div>
+      <div class="sc" id="scParity">
+        <div class="sl" id="scParityLbl">Array Status</div>
+        <div class="sv ok" id="scParityVal" style="font-size:15px;padding-top:3px">STARTED</div>
+        <div class="ss" id="scParitySub">3 data &middot; 1 parity &middot; live</div>
+      </div>
+      <div class="sc">
+        <div class="sl">Containers</div>
+        <div class="sv">8<span style="font-size:13px;color:var(--ts)">/9</span></div>
+        <div class="ss">1 stopped &middot; 0 errors</div>
+      </div>
+      <div class="sc">
+        <div class="sl">Shares</div>
+        <div class="sv">4</div>
+        <div class="ss">2 SMB &middot; 2 NFS &middot; 6 clients</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="panel">
+        <div class="ph">
+          <div class="pt">Pool Drives</div>
+          <div class="pa"><button class="btn">Run Mover</button></div>
+        </div>
+        <div class="dl" id="diskList"></div>
+      </div>
+
+      <div class="panel">
+        <!-- NonRAID view -->
+        <div class="pview on" id="vNR">
+          <div class="ph">
+            <div class="pt">NonRAID &middot; md_nonraid</div>
+            <div class="pa">
+              <button class="btn sm">Parity Check</button>
+              <button class="btn sm ac">nmdctl status</button>
+            </div>
+          </div>
+          <div class="arr-bar">
+            <div class="inlinebadge ok"><div class="pulse"></div>STARTED</div>
+            <div class="ameta">kernel 6.1 &middot; dkms 1.3.0</div>
+            <label class="turbo" style="margin-left:auto">
+              Turbo Write
+              <div class="twrap">
+                <input type="checkbox" id="turboCb" onchange="document.getElementById('wmlbl').textContent=this.checked?'Turbo (reconstruct write)':'Read-modify-write'">
+                <div class="ttrack"></div><div class="tthumb"></div>
+              </div>
+            </label>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>Slot</th><th>Device</th><th>nmd Block</th><th>FS</th><th>Status</th><th>Used</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--warn)">p0</td><td>/dev/sde</td><td style="color:var(--td)">—</td><td style="color:var(--td)">parity</td><td><span class="slot-ok"><span class="sdot"></span>OK</span></td><td>8.0 TB</td></tr>
+              <tr><td>d1</td><td>/dev/sdb</td><td style="color:var(--ok)">/dev/nmd1p1</td><td>xfs</td><td><span class="slot-ok"><span class="sdot"></span>OK</span></td><td>4.1 / 6.0 TB</td></tr>
+              <tr><td>d2</td><td>/dev/sdc</td><td style="color:var(--ok)">/dev/nmd2p1</td><td>xfs</td><td><span class="slot-ok"><span class="sdot"></span>OK</span></td><td>5.8 / 8.0 TB</td></tr>
+              <tr><td>d3</td><td>/dev/sdd</td><td style="color:var(--ok)">/dev/nmd3p1</td><td>xfs</td><td><span class="slot-ok"><span class="sdot"></span>OK</span></td><td>4.3 / 6.0 TB</td></tr>
+            </tbody>
+          </table>
+          <div class="cprog">
+            <div class="cm"><span>Quarterly parity check &middot; in progress</span><span style="color:var(--info)">47% &middot; ETA 2h 14m</span></div>
+            <div class="ptrack"><div class="pfill anim" style="width:47%"></div></div>
+            <div class="cm"><span>Last: 2026-02-14 &middot; 0 errors corrected</span><span>Next: 2026-05-14</span></div>
+          </div>
+          <div class="pb" style="padding-top:4px">
+            <div class="sr"><div class="sk">Write Method</div><div class="sv2" id="wmlbl">Read-modify-write</div></div>
+            <div class="sr"><div class="sk">Sync Errors</div><div class="sv2 ok">0</div></div>
+            <div class="sr"><div class="sk">Parity Mode</div><div class="sv2">Single (p0)</div></div>
+            <div class="sr"><div class="sk">DKMS Status</div><div class="sv2 ok">installed</div></div>
+          </div>
+        </div>
+
+        <!-- SnapRAID view -->
+        <div class="pview" id="vSR">
+          <div class="ph">
+            <div class="pt">SnapRAID &middot; scheduled parity</div>
+            <div class="pa">
+              <button class="btn sm">Scrub</button>
+              <button class="btn sm ac">Sync Now</button>
+            </div>
+          </div>
+          <div class="pb">
+            <div class="sr"><div class="sk">Status</div><div class="sv2 ok">Synced</div></div>
+            <div class="sr"><div class="sk">Last Sync</div><div class="sv2">Today 02:00</div></div>
+            <div class="sr"><div class="sk">Duration</div><div class="sv2">4m 12s</div></div>
+            <div class="sr"><div class="sk">Dirty Files</div><div class="sv2 warn">3</div></div>
+            <div class="sr"><div class="sk">Last Scrub</div><div class="sv2">Sun 02:00</div></div>
+            <div class="sr"><div class="sk">Scrub Plan</div><div class="sv2">5% weekly</div></div>
+            <div class="sr"><div class="sk">Parity Mode</div><div class="sv2">Single</div></div>
+            <div class="sr"><div class="sk">Next Sync</div><div class="sv2">Tomorrow 02:00</div></div>
+            <div class="sr"><div class="sk">Content Files</div><div class="sv2">3 locations</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Docker -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Docker Containers</div>
+        <div class="pa"><button class="btn">New Stack</button><button class="btn ac">Deploy</button></div>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th>CPU</th><th>Mem</th><th>Uptime</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>jellyfin</td><td style="color:var(--ts)">jellyfin/jellyfin:latest</td><td><span class="crun"><span class="cdot r"></span>running</span></td><td style="color:var(--td)">8096</td><td>2.1%</td><td>512 MB</td><td>12d 4h</td><td><div class="cacts"><button class="cab">&#9646;</button><button class="cab">&#8635;</button><button class="cab">&#8801;</button></div></td></tr>
+          <tr><td>nextcloud</td><td style="color:var(--ts)">nextcloud:28</td><td><span class="crun"><span class="cdot r"></span>running</span></td><td style="color:var(--td)">443</td><td>0.4%</td><td>256 MB</td><td>12d 4h</td><td><div class="cacts"><button class="cab">&#9646;</button><button class="cab">&#8635;</button><button class="cab">&#8801;</button></div></td></tr>
+          <tr><td>portainer</td><td style="color:var(--ts)">portainer/portainer-ce</td><td><span class="crun"><span class="cdot r"></span>running</span></td><td style="color:var(--td)">9000</td><td>0.1%</td><td>64 MB</td><td>12d 4h</td><td><div class="cacts"><button class="cab">&#9646;</button><button class="cab">&#8635;</button><button class="cab">&#8801;</button></div></td></tr>
+          <tr><td>vaultwarden</td><td style="color:var(--ts)">vaultwarden/server:latest</td><td><span class="crun"><span class="cdot r"></span>running</span></td><td style="color:var(--td)">8080</td><td>0.0%</td><td>32 MB</td><td>12d 4h</td><td><div class="cacts"><button class="cab">&#9646;</button><button class="cab">&#8635;</button><button class="cab">&#8801;</button></div></td></tr>
+          <tr><td>uptime-kuma</td><td style="color:var(--ts)">louislam/uptime-kuma:1</td><td><span class="cstp"><span class="cdot s"></span>stopped</span></td><td style="color:var(--td)">3001</td><td>—</td><td>—</td><td>stopped</td><td><div class="cacts"><button class="cab">&#9654;</button><button class="cab">&#8635;</button><button class="cab">&#8801;</button></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Shares + Log -->
+    <div class="g22">
+      <div class="panel">
+        <div class="ph">
+          <div class="pt">Active Shares</div>
+          <div class="pa"><button class="btn">Add Share</button></div>
+        </div>
+        <div class="shl">
+          <div class="shi"><div class="shp smb">SMB</div><div class="shn">pool</div><div class="shpa">/mnt/pool</div><div class="shc" style="color:var(--ok)">3 clients</div></div>
+          <div class="shi"><div class="shp smb">SMB</div><div class="shn">media</div><div class="shpa">/mnt/pool/media</div><div class="shc" style="color:var(--ok)">1 client</div></div>
+          <div class="shi"><div class="shp nfs">NFS</div><div class="shn">pool</div><div class="shpa">/mnt/pool &middot; 192.168.0.0/16</div><div class="shc" style="color:var(--ok)">2 clients</div></div>
+          <div class="shi"><div class="shp nfs">NFS</div><div class="shn">docker</div><div class="shpa">/mnt/pool/docker</div><div class="shc" style="color:var(--td)">0 clients</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt">System Log</div><div class="pa"><button class="btn">Clear</button></div></div>
+        <div class="term tall" id="termLog"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+
+const disks={
+  nonraid:[
+    {dev:'/dev/sda',label:'cache',tag:'cache',u:'312 GB',t:'1.0 TB',p:31,c:'low'},
+    {dev:'/dev/sdb · nmd1p1',label:'data',tag:'nmd',u:'4.1 TB',t:'6.0 TB',p:68,c:'mid'},
+    {dev:'/dev/sdc · nmd2p1',label:'data',tag:'nmd',u:'5.8 TB',t:'8.0 TB',p:72,c:'mid'},
+    {dev:'/dev/sdd · nmd3p1',label:'data',tag:'nmd',u:'4.3 TB',t:'6.0 TB',p:71,c:'mid'},
+    {dev:'/dev/sde · parity0',label:'parity',tag:'parity',u:'8.0 TB',t:'dedicated',p:100,c:'par'},
+  ],
+  snapraid:[
+    {dev:'/dev/sda',label:'cache',tag:'cache',u:'312 GB',t:'1.0 TB',p:31,c:'low'},
+    {dev:'/dev/sdb · disk1',label:'data',tag:'data',u:'4.1 TB',t:'6.0 TB',p:68,c:'mid'},
+    {dev:'/dev/sdc · disk2',label:'data',tag:'data',u:'5.8 TB',t:'8.0 TB',p:72,c:'mid'},
+    {dev:'/dev/sdd · disk3',label:'data',tag:'data',u:'4.3 TB',t:'6.0 TB',p:71,c:'mid'},
+    {dev:'/dev/sde · parity1',label:'parity',tag:'parity',u:'8.0 TB',t:'dedicated',p:100,c:'par'},
+  ]
+};
+function renderDisks(b){
+  document.getElementById('diskList').innerHTML=disks[b].map(d=>`
+    <div class="di">
+      <div class="dm"><div><span class="dn">${d.dev}</span><span class="dtag ${d.tag}">${d.label}</span></div><div class="dz">${d.u} / ${d.t}</div></div>
+      <div class="bt"><div class="bf ${d.c}" style="width:${d.p}%"></div></div>
+    </div>`).join('');
+}
+
+const logs={
+  nonraid:[
+    ['02:00:00','','nonraid.service: starting array...'],
+    ['02:00:01','tok','[NONRAID] Array STARTED · 3 data + 1 parity'],
+    ['02:00:02','','  nmdctl mount → /dev/nmd1p1 → /mnt/disk1'],
+    ['02:00:03','','  nmdctl mount → /dev/nmd2p1 → /mnt/disk2'],
+    ['02:00:04','tok','[MERGERFS] /mnt/cache:/mnt/disk* → /mnt/pool'],
+    ['03:00:00','tok','[MOVER] Cache 31% — threshold not met, skipping.'],
+    ['06:12:00','','[NONRAID] Quarterly parity check started'],
+    ['08:14:32','','  Check: 47% · 0 errors · ETA 2h 14m'],
+    ['08:42:18','tok','[INFO] FugginNAS started on :7070'],
+    ['08:42:19','','$ '],
+  ],
+  snapraid:[
+    ['02:00:01','tok','[SYNC] Starting snapraid sync...'],
+    ['02:00:04','','  Scanning disk1... 142,831 files'],
+    ['02:00:09','','  Scanning disk2... 198,443 files'],
+    ['02:00:15','twrn','[WARN] 3 new files detected (unprotected)'],
+    ['02:04:13','tok','[SYNC] Completed in 4m 12s. Everything OK.'],
+    ['03:00:00','tok','[MOVER] Cache 31% — threshold not met, skipping.'],
+    ['08:42:18','tok','[INFO] FugginNAS started on :7070'],
+    ['08:42:19','','$ '],
+  ]
+};
+function renderLog(b){
+  const el=document.getElementById('termLog');
+  el.innerHTML=logs[b].map((l,i)=>`<div class="tline"><span class="tts">${l[0]}</span><span class="${l[1]}">${l[2]}${i===logs[b].length-1?'<span class="tcur"></span>':''}</span></div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function setBackend(b){
+  document.getElementById('bNR').classList.toggle('on',b==='nonraid');
+  document.getElementById('bSR').classList.toggle('on',b==='snapraid');
+  document.getElementById('vNR').classList.toggle('on',b==='nonraid');
+  document.getElementById('vSR').classList.toggle('on',b==='snapraid');
+  renderDisks(b);renderLog(b);
+  if(b==='nonraid'){
+    document.getElementById('navLbl').textContent='NonRAID';
+    document.getElementById('navBadge').textContent='STARTED';document.getElementById('navBadge').className='nbadge g';
+    document.getElementById('parityPillLbl').textContent='Array Started';document.getElementById('parityPill').className='pill g';
+    document.getElementById('scParityLbl').textContent='Array Status';
+    document.getElementById('scParityVal').textContent='STARTED';document.getElementById('scParityVal').className='sv ok';
+    document.getElementById('scParityVal').style.cssText='font-size:15px;padding-top:3px';
+    document.getElementById('scParitySub').textContent='3 data · 1 parity · live';
+  } else {
+    document.getElementById('navLbl').textContent='SnapRAID';
+    document.getElementById('navBadge').textContent='3 dirty';document.getElementById('navBadge').className='nbadge w';
+    document.getElementById('parityPillLbl').textContent='SnapRAID Synced';document.getElementById('parityPill').className='pill g';
+    document.getElementById('scParityLbl').textContent='Last Sync';
+    document.getElementById('scParityVal').textContent='02:00';document.getElementById('scParityVal').className='sv ok';
+    document.getElementById('scParityVal').style.cssText='font-size:21px';
+    document.getElementById('scParitySub').textContent='✓ completed · 3 dirty files';
+  }
+}
+
+const themes=[
+  {id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},
+  {id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},
+  {id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},
+  {id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},
+  {id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},
+  {id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},
+  {id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},
+  {id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},
+  {id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},
+  {id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'},
+];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){
+  document.getElementById('tdrop').innerHTML=themes.map(t=>`
+    <div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')">
+      <div class="tdot" style="background:${t.dot}"></div>
+      <span>${t.label}</span>
+      <span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span>
+    </div>`).join('');
+}
+function applyTheme(id){
+  cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);
+  const t=themes.find(x=>x.id===id);
+  document.getElementById('tlbl').textContent=t.label;
+  document.getElementById('tswatch').style.background=t.dot;
+  buildDrop();closeDrop();
+}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);setBackend('nonraid');
+</script>
+</body>
+</html>

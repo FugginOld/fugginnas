@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — NonRAID Disk Prep</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">setup wizard</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Wizard Steps</div>
+    <div class="step-item done"><div class="step-num">1</div>Drive Selection</div>
+    <div class="step-item done"><div class="step-num">2</div>Storage Backend</div>
+    <div class="step-item done"><div class="step-num">3</div>Pool Config</div>
+    <div class="step-item done"><div class="step-num">4</div>Drive Roles</div>
+    <div class="step-item active"><div class="step-num">5</div>Disk Prep</div>
+    <div class="step-item"><div class="step-num">6</div>Cache Mover</div>
+    <div class="step-item"><div class="step-num">7</div>Shares</div>
+    <div class="step-item"><div class="step-num">8</div>Summary &amp; Apply</div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick"><button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button><div class="tdrop" id="tdrop"></div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">NonRAID — Disk Prep</div>
+      <div class="tb-sub">Step 5 of 8 &mdash; partition, format, and start the array</div>
+    </div>
+    <div class="tr">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="pill i"><div class="pulse"></div>Setup Mode</div>
+      <div class="pill" style="background:rgba(74,158,245,.12);color:#4a9ef5;border:1px solid rgba(74,158,245,.25)">NonRAID</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Parity Drives &mdash; GPT type fd00</div>
+        <div class="pa" style="font-family:var(--fm);font-size:10px;color:var(--warn)">⚠ Destructive — run as root</div>
+      </div>
+      <div style="padding:4px 13px 13px">
+        <div style="font-family:var(--fm);font-size:10px;color:var(--td);margin-bottom:6px">/dev/sdb — parity</div>
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8;background:var(--tbg);padding:10px 12px;border-radius:var(--r)">sgdisk --zap-all /dev/sdb
+sgdisk -n 1:0:0 -t 1:fd00 /dev/sdb</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="pt">Data Drives &mdash; GPT type 8300, then mkfs.xfs</div></div>
+      <div style="padding:4px 13px 0">
+        <div style="font-family:var(--fm);font-size:10px;color:var(--td);margin-bottom:6px">/dev/sdc — data</div>
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8;background:var(--tbg);padding:10px 12px;border-radius:var(--r);margin-bottom:12px">sgdisk --zap-all /dev/sdc
+sgdisk -n 1:0:0 -t 1:8300 /dev/sdc
+mkfs.xfs -f /dev/sdc1</pre>
+
+        <div style="font-family:var(--fm);font-size:10px;color:var(--td);margin-bottom:6px">/dev/sdd — data</div>
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8;background:var(--tbg);padding:10px 12px;border-radius:var(--r);margin-bottom:12px">sgdisk --zap-all /dev/sdd
+sgdisk -n 1:0:0 -t 1:8300 /dev/sdd
+mkfs.xfs -f /dev/sdd1</pre>
+
+        <div style="font-family:var(--fm);font-size:10px;color:var(--td);margin-bottom:6px">/dev/sde — data</div>
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8;background:var(--tbg);padding:10px 12px;border-radius:var(--r);margin-bottom:13px">sgdisk --zap-all /dev/sde
+sgdisk -n 1:0:0 -t 1:8300 /dev/sde
+mkfs.xfs -f /dev/sde1</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="pt">Start the Array &mdash; interactive (run in terminal)</div></div>
+      <div style="padding:4px 13px 13px">
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8;background:var(--tbg);padding:10px 12px;border-radius:var(--r);margin-bottom:10px">nmdctl create</pre>
+        <div style="font-family:var(--fm);font-size:10px;color:var(--td);line-height:1.7">
+          <code style="color:var(--ac)">nmdctl create</code> is interactive — it prompts to confirm each drive assignment.<br>
+          After completing the wizard, run <code style="color:var(--ac)">nmdctl start</code> then <code style="color:var(--ac)">nmdctl mount</code> to bring the array online.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="pt">Confirmation</div></div>
+      <div style="padding:12px 13px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-family:var(--fm);font-size:11px;color:var(--ts)">
+          <input type="checkbox" id="confirmCheck" onchange="checkConfirm()" style="width:14px;height:14px;accent-color:var(--ac)">
+          I have run all commands above. The array is started and mounted at <code style="color:var(--ok)">/mnt/array</code>.
+        </label>
+      </div>
+    </div>
+
+    <div class="wz-actions">
+      <button class="btn">← Back</button>
+      <button class="btn ac dis" id="proceedBtn" disabled>Next: Cache Mover →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+function checkConfirm(){
+  const ok=document.getElementById('confirmCheck').checked;
+  const btn=document.getElementById('proceedBtn');
+  btn.disabled=!ok;
+  if(ok){btn.classList.remove('dis');}else{btn.classList.add('dis');}
+}
+const themes=[{id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},{id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},{id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},{id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},{id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},{id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},{id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},{id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},{id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},{id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'}];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

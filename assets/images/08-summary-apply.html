@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — Summary &amp; Apply</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">setup wizard</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Wizard Steps</div>
+    <div class="step-item done"><div class="step-num">1</div>Drive Selection</div>
+    <div class="step-item done"><div class="step-num">2</div>Storage Backend</div>
+    <div class="step-item done"><div class="step-num">3</div>Pool Config</div>
+    <div class="step-item done"><div class="step-num">4</div>SnapRAID Config</div>
+    <div class="step-item done"><div class="step-num">5</div>Cache Mover</div>
+    <div class="step-item done"><div class="step-num">6</div>Shares</div>
+    <div class="step-item active"><div class="step-num">7</div>Summary &amp; Apply</div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick"><button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button><div class="tdrop" id="tdrop"></div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">Summary &amp; Apply</div>
+      <div class="tb-sub">Step 7 of 7 &mdash; review and write configuration to disk</div>
+    </div>
+    <div class="tr">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="pill g" id="statusPill" style="display:none"><div class="pulse"></div><span id="statusLbl">Applied</span></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="g22">
+      <div class="panel">
+        <div class="ph"><div class="pt">Configuration Summary</div></div>
+        <div class="pb">
+          <div class="sr"><div class="sk">Backend</div><div class="sv2 ok">SnapRAID + MergerFS</div></div>
+          <div class="sr"><div class="sk">Pool mount</div><div class="sv2">/mnt/pool</div></div>
+          <div class="sr"><div class="sk">Cache mount</div><div class="sv2">/mnt/cache</div></div>
+          <div class="sr"><div class="sk">Data drives</div><div class="sv2">3 × HDD (14.0 TB)</div></div>
+          <div class="sr"><div class="sk">Parity drive</div><div class="sv2">/dev/sde (single)</div></div>
+          <div class="sr"><div class="sk">Sync schedule</div><div class="sv2">daily 02:00</div></div>
+          <div class="sr"><div class="sk">Scrub schedule</div><div class="sv2">weekly Sunday</div></div>
+          <div class="sr"><div class="sk">Mover schedule</div><div class="sv2">daily 03:30</div></div>
+          <div class="sr"><div class="sk">Shares</div><div class="sv2">3 (2 SMB, 1 NFS)</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><div class="pt">Files to Write</div></div>
+        <table class="tbl">
+          <thead><tr><th>File</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td style="font-size:10px">/etc/fstab</td><td><span class="slot-warn"><span class="sdot"></span>append (backup)</span></td></tr>
+            <tr><td style="font-size:10px">/etc/snapraid.conf</td><td><span class="slot-warn"><span class="sdot"></span>write</span></td></tr>
+            <tr><td style="font-size:10px">/etc/samba/smb.conf</td><td><span class="slot-warn"><span class="sdot"></span>append</span></td></tr>
+            <tr><td style="font-size:10px">/etc/exports</td><td><span class="slot-warn"><span class="sdot"></span>append</span></td></tr>
+            <tr><td style="font-size:10px">/usr/local/bin/fugginnas-mover.sh</td><td><span class="slot-warn"><span class="sdot"></span>write</span></td></tr>
+            <tr><td style="font-size:10px">snapraid-sync.{service,timer}</td><td><span class="slot-warn"><span class="sdot"></span>write</span></td></tr>
+            <tr><td style="font-size:10px">snapraid-scrub.{service,timer}</td><td><span class="slot-warn"><span class="sdot"></span>write</span></td></tr>
+            <tr><td style="font-size:10px">FugginNAS-mover.{service,timer}</td><td><span class="slot-warn"><span class="sdot"></span>write</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Apply Output</div>
+        <div class="pa" id="applyBtns">
+          <button class="btn" onclick="startApply()">← Back</button>
+          <button class="btn ac" id="applyBtn" onclick="startApply()">Apply Configuration</button>
+        </div>
+      </div>
+      <div class="term tall" id="termLog"><span style="color:var(--td)">Waiting for apply...</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+
+function startApply(){
+  document.getElementById('applyBtn').disabled=true;
+  document.getElementById('applyBtn').classList.add('dis');
+  const term=document.getElementById('termLog');
+  term.innerHTML='';
+  const lines=[
+    ['','→ Backing up /etc/fstab to /etc/fstab.bak.20260513-142305'],
+    ['tok','→ Writing /etc/fstab ... done'],
+    ['tok','→ Writing /etc/snapraid.conf ... done'],
+    ['tok','→ Writing /etc/samba/smb.conf ... done'],
+    ['tok','→ Writing /etc/exports ... done'],
+    ['tok','→ Writing /usr/local/bin/fugginnas-mover.sh ... done'],
+    ['tok','→ Writing /etc/systemd/system/snapraid-sync.service ... done'],
+    ['tok','→ Writing /etc/systemd/system/snapraid-sync.timer ... done'],
+    ['tok','→ Writing /etc/systemd/system/snapraid-scrub.service ... done'],
+    ['tok','→ Writing /etc/systemd/system/snapraid-scrub.timer ... done'],
+    ['tok','→ Writing /etc/systemd/system/FugginNAS-mover.service ... done'],
+    ['tok','→ Writing /etc/systemd/system/FugginNAS-mover.timer ... done'],
+    ['',''],
+    ['','→ systemctl daemon-reload'],
+    ['tok','→ systemctl enable --now snapraid-sync.timer ... enabled'],
+    ['tok','→ systemctl enable --now snapraid-scrub.timer ... enabled'],
+    ['tok','→ systemctl enable --now FugginNAS-mover.timer ... enabled'],
+    ['',''],
+    ['tok','✓ Apply complete. Navigate to dashboard to monitor status.'],
+  ];
+  let i=0;
+  const t=new Date();
+  function ts(){const n=new Date();return n.toLocaleTimeString('en-US',{hour12:false});}
+  const iv=setInterval(()=>{
+    if(i>=lines.length){clearInterval(iv);
+      document.getElementById('statusPill').style.display='flex';
+      return;}
+    const [cls,txt]=lines[i++];
+    const d=document.createElement('div');d.className='tline';
+    d.innerHTML=`<span class="tts">${ts()}</span><span class="${cls}">${txt}</span>`;
+    term.appendChild(d);term.scrollTop=term.scrollHeight;
+  },180);
+}
+
+const themes=[{id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},{id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},{id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},{id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},{id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},{id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},{id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},{id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},{id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},{id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'}];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

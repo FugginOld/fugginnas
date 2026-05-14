@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — SnapRAID Config</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">setup wizard</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Wizard Steps</div>
+    <div class="step-item done"><div class="step-num">1</div>Drive Selection</div>
+    <div class="step-item done"><div class="step-num">2</div>Storage Backend</div>
+    <div class="step-item done"><div class="step-num">3</div>Pool Config</div>
+    <div class="step-item active"><div class="step-num">4</div>SnapRAID Config</div>
+    <div class="step-item"><div class="step-num">5</div>Cache Mover</div>
+    <div class="step-item"><div class="step-num">6</div>Shares</div>
+    <div class="step-item"><div class="step-num">7</div>Summary &amp; Apply</div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick"><button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button><div class="tdrop" id="tdrop"></div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">SnapRAID Configuration</div>
+      <div class="tb-sub">Step 4 of 7 &mdash; parity, sync schedule, scrub plan</div>
+    </div>
+    <div class="tr"><div class="clock" id="clock">--:--:--</div><div class="pill i"><div class="pulse"></div>Setup Mode</div></div>
+  </div>
+
+  <div class="content">
+
+    <div class="g22">
+      <div class="panel">
+        <div class="ph"><div class="pt">Parity Settings</div></div>
+        <div class="wz-body">
+          <div class="fld">
+            <div class="flbl">Parity mode</div>
+            <select>
+              <option value="single" selected>Single parity &mdash; tolerate 1 drive failure</option>
+              <option value="dual">Dual parity &mdash; tolerate 2 drive failures</option>
+            </select>
+          </div>
+          <div class="fld">
+            <div class="flbl">Parity drive</div>
+            <select>
+              <option>/dev/sde &mdash; 6.0 TB (ST6000VN001)</option>
+            </select>
+            <div class="fhint">Must be ≥ largest data drive</div>
+          </div>
+          <div class="fld">
+            <div class="flbl">Block size</div>
+            <select>
+              <option value="256" selected>256 KB (default)</option>
+              <option value="512">512 KB</option>
+              <option value="1024">1 MB</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><div class="pt">Schedule</div></div>
+        <div class="wz-body">
+          <div class="fld">
+            <div class="flbl">Sync time (daily)</div>
+            <input type="time" value="02:00">
+            <div class="fhint">Systemd timer fires at this time every day</div>
+          </div>
+          <div class="fld">
+            <div class="flbl">Scrub schedule</div>
+            <select>
+              <option value="weekly" selected>Weekly (every Sunday)</option>
+              <option value="monthly">Monthly (1st of month)</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="fld">
+            <div class="flbl">Scrub percentage</div>
+            <input type="number" value="5" min="1" max="100">
+            <div class="fhint">% of parity to verify per scrub run</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Generated snapraid.conf — preview</div>
+        <div class="pa"><button class="btn">Dry-Run</button></div>
+      </div>
+      <div style="padding:12px 13px">
+        <pre style="font-family:var(--fm);font-size:11px;color:var(--ok);line-height:1.8">parity /mnt/disk4/snapraid.parity
+
+content /var/snapraid.content
+content /mnt/disk1/snapraid.content
+content /mnt/disk2/snapraid.content
+
+disk d1 /mnt/disk1
+disk d2 /mnt/disk2
+disk d3 /mnt/disk3
+
+exclude *.unrecoverable
+exclude /lost+found/
+exclude /tmp/
+
+blocksize 256
+autosave 500</pre>
+      </div>
+    </div>
+
+    <div class="wz-actions">
+      <button class="btn">← Back</button>
+      <button class="btn ac">Next: Cache Mover →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+const themes=[{id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'custom'},{id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME'},{id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME'},{id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE'},{id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE'},{id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE'},{id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE'},{id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie'},{id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin'},{id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway'}];
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

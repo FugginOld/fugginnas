@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark-industrial">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FugginNAS — Theme Showcase</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Cantarell:wght@400;700&family=Noto+Sans:wght@400;600&family=Ubuntu:wght@400;500&family=Raleway:wght@300;600;700&family=DM+Sans:wght@300;500;700&family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;600&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared.css">
+<style>
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;padding:0}
+.tc{border-radius:var(--r);overflow:hidden;border:1px solid var(--bdr)}
+.tc-head{padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.tc-dot{width:12px;height:12px;border-radius:50%}
+.tc-name{font-family:var(--fm);font-size:11px;font-weight:600;letter-spacing:.5px}
+.tc-de{font-family:var(--fm);font-size:9px;margin-left:auto;opacity:.4;text-transform:uppercase;letter-spacing:1px}
+.tc-body{padding:12px 14px}
+.tc-swatches{display:flex;gap:5px;margin-bottom:10px}
+.sw{width:26px;height:26px;border-radius:3px;flex-shrink:0}
+.tc-sample{border-radius:3px;padding:9px 11px;font-family:var(--fm);font-size:10px;line-height:1.7}
+.tc-label{font-size:9px;font-family:var(--fm);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;opacity:.45}
+.tc-btns{display:flex;gap:7px;margin-top:9px}
+.tc-btn{padding:4px 12px;border-radius:3px;font-family:var(--fm);font-size:10px;letter-spacing:.3px;border:none;cursor:pointer}
+.tc-btn-sec{padding:4px 12px;border-radius:3px;font-family:var(--fm);font-size:10px;letter-spacing:.3px;cursor:pointer}
+.tc-stat{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);font-family:var(--fm);font-size:10px}
+.tc-stat:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sb-logo"><div class="sb-name">FugginNAS</div><div class="sb-ver">UI reference</div></div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Pages</div>
+    <div class="nav-item" onclick="location.href='01-dashboard.html'"><span>Dashboard</span></div>
+    <div class="nav-item" onclick="location.href='index.html'"><span>All Mockups</span></div>
+  </div>
+  <div class="sb-foot">
+    <div class="tpick"><button class="tbtn" onclick="toggleDrop()"><div class="tswatch" id="tswatch"></div><span class="tlbl" id="tlbl">dark-industrial</span><span style="opacity:.5;font-size:9px">&#9650;</span></button><div class="tdrop" id="tdrop"></div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="tl">
+      <div class="tb-title">Theme Showcase</div>
+      <div class="tb-sub">10 Linux DE-inspired themes &mdash; click any card to apply</div>
+    </div>
+    <div class="tr"><div class="clock" id="clock">--:--:--</div></div>
+  </div>
+
+  <div class="content">
+    <div class="theme-grid" id="themeGrid"></div>
+  </div>
+</div>
+
+<script>
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false})},1000);
+
+const themes=[
+  {id:'dark-industrial',label:'Dark Industrial',dot:'#e07b00',de:'Custom',
+   bg:'#0e0e0e',sur:'#1a1a1a',ele:'#222',bdr:'#2a2a2a',tp:'#e8e8e8',ts:'#888',td:'#555',
+   ac:'#e07b00',ok:'#3dba6f',err:'#d94f4f',tbg:'#000',tt:'#00c853',
+   desc:'Industrial orange · monospace-first'},
+  {id:'gnome-dark',label:'GNOME Dark',dot:'#3584e4',de:'GNOME',
+   bg:'#1e1e2e',sur:'#242424',ele:'#303030',bdr:'#3a3a3a',tp:'#ffffff',ts:'#a0a0a0',td:'#666',
+   ac:'#3584e4',ok:'#33d17a',err:'#e01b24',tbg:'#111',tt:'#33d17a',
+   desc:'Adwaita dark · electric blue'},
+  {id:'gnome-light',label:'GNOME Light',dot:'#3584e4',de:'GNOME',
+   bg:'#fafafa',sur:'#ffffff',ele:'#f0f0f0',bdr:'#d0d0d0',tp:'#1a1a1a',ts:'#666',td:'#999',
+   ac:'#3584e4',ok:'#26a269',err:'#c01c28',tbg:'#f0f0f0',tt:'#26a269',
+   desc:'Adwaita light · accessible blue'},
+  {id:'kde-dark',label:'Breeze Dark',dot:'#1d99f3',de:'KDE',
+   bg:'#1b2027',sur:'#232629',ele:'#2d3036',bdr:'#3d4147',tp:'#eff0f1',ts:'#7f8c8d',td:'#555',
+   ac:'#1d99f3',ok:'#27ae60',err:'#da4453',tbg:'#0d1117',tt:'#27ae60',
+   desc:'Breeze dark · KDE cyan'},
+  {id:'kde-light',label:'Breeze Light',dot:'#1d99f3',de:'KDE',
+   bg:'#eff0f1',sur:'#ffffff',ele:'#e8eaeb',bdr:'#bdc3c7',tp:'#1a1a1a',ts:'#555',td:'#999',
+   ac:'#1d99f3',ok:'#27ae60',err:'#da4453',tbg:'#e0e2e3',tt:'#27ae60',
+   desc:'Breeze light · clean workspace'},
+  {id:'xfce',label:'XFCE Nord',dot:'#5e81ac',de:'XFCE',
+   bg:'#2e3440',sur:'#3b4252',ele:'#434c5e',bdr:'#4c566a',tp:'#eceff4',ts:'#d8dee9',td:'#81a1c1',
+   ac:'#5e81ac',ok:'#a3be8c',err:'#bf616a',tbg:'#242932',tt:'#a3be8c',
+   desc:'Nord palette · arctic blue'},
+  {id:'mate',label:'MATE Menta',dot:'#87a556',de:'MATE',
+   bg:'#1c2523',sur:'#243028',ele:'#2d3d32',bdr:'#3a4e3e',tp:'#e8e8e8',ts:'#a0a8a0',td:'#607060',
+   ac:'#87a556',ok:'#87a556',err:'#cc5252',tbg:'#111711',tt:'#87a556',
+   desc:'Menta green · forest tones'},
+  {id:'budgie',label:'Budgie',dot:'#00bcd4',de:'Budgie',
+   bg:'#1e2026',sur:'#272b33',ele:'#313640',bdr:'#3c4249',tp:'#e8eaf0',ts:'#909aaa',td:'#606878',
+   ac:'#00bcd4',ok:'#4caf50',err:'#f44336',tbg:'#14161c',tt:'#4caf50',
+   desc:'Solus Budgie · teal accent'},
+  {id:'deepin',label:'Deepin',dot:'#0050ef',de:'Deepin',
+   bg:'#1c2026',sur:'#242a32',ele:'#2e3540',bdr:'#394452',tp:'#f0f2f5',ts:'#8896a8',td:'#556070',
+   ac:'#0050ef',ok:'#00c853',err:'#f44336',tbg:'#111620',tt:'#00c853',
+   desc:'Deepin OS · cobalt blue'},
+  {id:'sway',label:'Sway / i3',dot:'#00c853',de:'Sway',
+   bg:'#000000',sur:'#0a0a0a',ele:'#111',bdr:'#222',tp:'#cccccc',ts:'#666',td:'#444',
+   ac:'#00c853',ok:'#00c853',err:'#ff4444',tbg:'#000',tt:'#00c853',
+   desc:'Minimal WM · terminal green'},
+];
+
+let cur=localStorage.getItem('fn-theme')||'dark-industrial';
+
+function buildGrid(){
+  const grid=document.getElementById('themeGrid');
+  grid.innerHTML=themes.map(t=>`
+    <div class="tc" style="background:${t.sur};border-color:${t.bdr};cursor:pointer" onclick="applyTheme('${t.id}')" title="Apply ${t.label}">
+      <div class="tc-head" style="background:${t.bg}">
+        <div class="tc-dot" style="background:${t.ac}"></div>
+        <div class="tc-name" style="color:${t.tp};font-family:'IBM Plex Mono',monospace">${t.label}</div>
+        <div class="tc-de" style="color:${t.ts}">${t.de}</div>
+        ${t.id===cur?`<div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:${t.ac};border:1px solid ${t.ac};padding:1px 6px;border-radius:2px;margin-left:6px">active</div>`:''}
+      </div>
+      <div class="tc-body" style="background:${t.sur}">
+        <div class="tc-label" style="color:${t.ts}">Color palette</div>
+        <div class="tc-swatches">
+          <div class="sw" style="background:${t.bg};border:1px solid ${t.bdr}" title="bg"></div>
+          <div class="sw" style="background:${t.sur}" title="surface"></div>
+          <div class="sw" style="background:${t.ele}" title="element"></div>
+          <div class="sw" style="background:${t.bdr}" title="border"></div>
+          <div class="sw" style="background:${t.tp}" title="text-primary"></div>
+          <div class="sw" style="background:${t.ts}" title="text-secondary"></div>
+          <div class="sw" style="background:${t.ac}" title="accent"></div>
+          <div class="sw" style="background:${t.ok}" title="ok"></div>
+          <div class="sw" style="background:${t.err}" title="error"></div>
+          <div class="sw" style="background:${t.tbg};border:1px solid ${t.bdr}" title="terminal-bg"></div>
+          <div class="sw" style="background:${t.tt}" title="terminal-text"></div>
+        </div>
+        <div class="tc-sample" style="background:${t.bg};border:1px solid ${t.bdr}">
+          <div class="tc-stat">
+            <span style="color:${t.ts}">Pool usage</span>
+            <span style="color:${t.ok}">6.2 TB / 14.0 TB</span>
+          </div>
+          <div class="tc-stat">
+            <span style="color:${t.ts}">Last sync</span>
+            <span style="color:${t.tp}">today 02:00</span>
+          </div>
+          <div class="tc-stat">
+            <span style="color:${t.ts}">Status</span>
+            <span style="color:${t.ac}">● ${t.desc}</span>
+          </div>
+        </div>
+        <div class="tc-btns">
+          <button class="tc-btn" style="background:${t.ac};color:#000">Apply</button>
+          <button class="tc-btn-sec" style="color:${t.ts};border:1px solid ${t.bdr};background:transparent">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function buildDrop(){document.getElementById('tdrop').innerHTML=themes.map(t=>`<div class="topt ${t.id===cur?'sel':''}" onclick="applyTheme('${t.id}')"><div class="tdot" style="background:${t.dot}"></div><span>${t.label}</span><span style="margin-left:auto;font-size:9px;opacity:.4">${t.de}</span></div>`).join('');}
+function applyTheme(id){cur=id;document.documentElement.setAttribute('data-theme',id);localStorage.setItem('fn-theme',id);const t=themes.find(x=>x.id===id);document.getElementById('tlbl').textContent=t.label;document.getElementById('tswatch').style.background=t.dot;buildDrop();closeDrop();buildGrid();}
+function toggleDrop(){document.getElementById('tdrop').classList.toggle('open')}
+function closeDrop(){document.getElementById('tdrop').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.tpick'))closeDrop()});
+buildDrop();applyTheme(cur);
+</script>
+</body>
+</html>

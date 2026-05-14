@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FugginNAS — NonRAID Dashboard</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<div id="app">
+  <h1>FugginNAS</h1>
+  <h2>Status Dashboard — NonRAID Backend</h2>
+
+  <div class="grid-2">
+
+    <!-- Pool panel -->
+    <div class="panel">
+      <h3>Pool</h3>
+      <div class="panel-row">
+        <span class="panel-label">Mount</span>
+        <span class="panel-value">/mnt/pool</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Status</span>
+        <span class="panel-value"><span class="status-badge ok">MOUNTED</span></span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Used</span>
+        <span class="panel-value">31%</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Available</span>
+        <span class="panel-value">8.2 TiB</span>
+      </div>
+    </div>
+
+    <!-- NonRAID panel -->
+    <div class="panel">
+      <h3>NonRAID Array</h3>
+      <div class="panel-row">
+        <span class="panel-label">State</span>
+        <span class="panel-value"><span class="status-badge ok">STARTED</span></span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Parity disks</span>
+        <span class="panel-value">/dev/sdb</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Data disks</span>
+        <span class="panel-value">/dev/sdc, /dev/sdd, /dev/sde</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-label">Parity mode</span>
+        <span class="panel-value">single</span>
+      </div>
+      <div class="actions" style="margin-top:1rem;">
+        <button class="secondary">Stop Array</button>
+        <button class="secondary">Unmount</button>
+        <button class="secondary">Run Check</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Services -->
+  <div class="panel">
+    <h3>Services</h3>
+    <div class="panel-row">
+      <span class="panel-label">smbd (Samba)</span>
+      <span class="panel-value"><span class="status-badge ok">active</span></span>
+    </div>
+    <div class="panel-row">
+      <span class="panel-label">nfs-server</span>
+      <span class="panel-value"><span class="status-badge warn">inactive</span></span>
+    </div>
+  </div>
+
+  <!-- Shares -->
+  <div class="panel">
+    <h3>Shares</h3>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Path</th><th>Protocol</th><th>Path exists</th><th>Reachable</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>media</td><td>/mnt/pool/media</td>
+          <td><span class="tag active">SMB</span></td>
+          <td><span class="status-badge ok">yes</span></td>
+          <td><span class="status-badge ok">SMB ✓</span></td>
+        </tr>
+        <tr>
+          <td>downloads</td><td>/mnt/pool/downloads</td>
+          <td><span class="tag active">SMB</span></td>
+          <td><span class="status-badge ok">yes</span></td>
+          <td><span class="status-badge ok">SMB ✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="actions">
+    <button class="secondary">← Reconfigure</button>
+  </div>
+</div>
+<div id="theme-picker">🎨 <select><option>default</option><option>nord</option><option>dracula</option><option>tron-blue</option><option>tron-red</option></select></div>
+</body>
+</html>
