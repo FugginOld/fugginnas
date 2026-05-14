@@ -31,6 +31,26 @@ async function post(url, data) {
   });
 }
 
+function showModal(message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <p>${message}</p>
+      <div class="actions">
+        <button id="modal-cancel" class="secondary">Cancel</button>
+        <button id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#modal-cancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#modal-confirm').addEventListener('click', () => {
+    overlay.remove();
+    onConfirm();
+  });
+}
+
 // ── Screen: Welcome ──────────────────────────────────────────────────────────
 
 register('welcome', () => {
@@ -47,22 +67,41 @@ register('welcome', () => {
 // ── Screen: Storage Backend ──────────────────────────────────────────────────
 
 register('backend', () => {
+  const current = _state.backend;
+
   app().innerHTML = `
     <h1>FugginNAS</h1>
     <h2>Step 2 — Storage Backend</h2>
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>NonRAID + MergerFS</th>
+          <th>SnapRAID + MergerFS</th>
+          <th>MergerFS only</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Parity timing</td><td>Live, every write</td><td>Scheduled (nightly)</td><td>None</td></tr>
+        <tr><td>Write overhead</td><td>~1/3 disk speed</td><td>Full speed</td><td>Full speed</td></tr>
+        <tr><td>Unsynced file risk</td><td>None</td><td>Until next sync</td><td>N/A</td></tr>
+        <tr><td>Accidental delete</td><td>Not protected</td><td>Protected until sync</td><td>Not protected</td></tr>
+        <tr><td>Recovery model</td><td>Drive rebuild</td><td>Per-file restore</td><td>None</td></tr>
+      </tbody>
+    </table>
     <div class="option-group">
       <label class="option">
-        <input type="radio" name="backend" value="snapraid" checked>
+        <input type="radio" name="backend" value="snapraid" ${current === 'snapraid' || !current ? 'checked' : ''}>
         <span>SnapRAID + MergerFS</span>
         <small>Scheduled parity — lower write overhead, recovery via sync</small>
       </label>
       <label class="option">
-        <input type="radio" name="backend" value="nonraid">
+        <input type="radio" name="backend" value="nonraid" ${current === 'nonraid' ? 'checked' : ''}>
         <span>NonRAID + MergerFS</span>
         <small>Live real-time parity — unRAID-style kernel driver</small>
       </label>
       <label class="option">
-        <input type="radio" name="backend" value="mergerfs">
+        <input type="radio" name="backend" value="mergerfs" ${current === 'mergerfs' ? 'checked' : ''}>
         <span>MergerFS only</span>
         <small>Pooling only — no parity protection</small>
       </label>
@@ -74,10 +113,29 @@ register('backend', () => {
 
   document.getElementById('btn-next').addEventListener('click', async () => {
     const selected = document.querySelector('input[name="backend"]:checked').value;
-    const resp = await post('/api/backend', { backend: selected });
-    if (resp.ok) {
-      _state.backend = selected;
-      navigate(selected === 'nonraid' ? '#nonraid' : '#drives');
+
+    const doNavigate = async () => {
+      const resp = await post('/api/backend', { backend: selected });
+      if (resp.ok) {
+        _state.backend = selected;
+        navigate('#drives');
+      }
+    };
+
+    if (current && current !== selected) {
+      showModal(
+        `Changing backend from <strong>${current}</strong> to <strong>${selected}</strong> will reset your pool, parity, and mover configuration. Continue?`,
+        async () => {
+          delete _state.pool;
+          delete _state.snapraid;
+          delete _state.nonraid;
+          delete _state.mover;
+          delete _state.shares;
+          await doNavigate();
+        }
+      );
+    } else {
+      await doNavigate();
     }
   });
 });
@@ -142,42 +200,6 @@ register('drives', async () => {
   });
 });
 
-// ── Screen: NonRAID (mdadm) Configuration ────────────────────────────────────
-
-register('nonraid', () => {
-  app().innerHTML = `
-    <h1>FugginNAS</h1>
-    <h2>NonRAID — RAID Array Configuration</h2>
-    <div class="form-group">
-      <label>Devices (comma-separated)
-        <input id="nonraid-devices" type="text" placeholder="/dev/sdb,/dev/sdc">
-      </label>
-      <label>RAID level
-        <select id="nonraid-level">
-          <option value="1">RAID 1 — Mirroring</option>
-          <option value="5">RAID 5 — Striping with parity</option>
-          <option value="6">RAID 6 — Double parity</option>
-          <option value="10">RAID 10 — Mirroring + Striping</option>
-          <option value="0">RAID 0 — Striping (no redundancy)</option>
-        </select>
-      </label>
-    </div>
-    <div class="actions">
-      <button class="secondary" id="btn-back">← Back</button>
-      <button id="btn-next">Next →</button>
-    </div>
-  `;
-
-  document.getElementById('btn-back').addEventListener('click', () => navigate('#backend'));
-  document.getElementById('btn-next').addEventListener('click', async () => {
-    const devices = document.getElementById('nonraid-devices').value
-      .split(',').map(d => d.trim()).filter(Boolean);
-    const level = parseInt(document.getElementById('nonraid-level').value, 10);
-    const r = await post('/api/nonraid', { devices, level });
-    if (r.ok) navigate('#drives');
-  });
-});
-
 // ── Screen: Pool Configuration ────────────────────────────────────────────────
 
 register('pool', () => {
@@ -218,11 +240,15 @@ register('pool', () => {
       data_mounts: dataDisks.map((_, i) => `/mnt/disk${i + 1}`),
       write_policy: document.getElementById('write-policy').value,
     });
-    if (r.ok) navigate(_state.backend === 'mergerfs' ? '#mover' : '#snapraid');
+    if (r.ok) {
+      if (_state.backend === 'mergerfs') navigate('#mover');
+      else if (_state.backend === 'nonraid') navigate('#nonraid');
+      else navigate('#snapraid');
+    }
   });
 });
 
-// ── Screen: SnapRAID Configuration ───────────────────────────────────────────
+// ── Screen: SnapRAID Configuration (5a) ──────────────────────────────────────
 
 register('snapraid', () => {
   const tagged = _state.drives || {};
@@ -231,13 +257,16 @@ register('snapraid', () => {
 
   app().innerHTML = `
     <h1>FugginNAS</h1>
-    <h2>Step 5 — SnapRAID Configuration</h2>
+    <h2>Step 5a — SnapRAID Configuration</h2>
     <div class="form-group">
       <label>Parity mode
         <select id="parity-mode">
           <option value="single">Single parity (1 parity disk)</option>
           <option value="dual">Dual parity (2 parity disks)</option>
         </select>
+      </label>
+      <label>Sync schedule time (HH:MM)
+        <input id="sync-time" type="text" value="02:00" placeholder="02:00">
       </label>
       <label>Scrub schedule
         <select id="scrub-schedule">
@@ -247,7 +276,8 @@ register('snapraid', () => {
         </select>
       </label>
     </div>
-    <p>${parityDisks.length} parity disk(s) selected.</p>
+    <p class="hint">Content files will be auto-placed on each data disk and the parity disk.</p>
+    <p>${parityDisks.length} parity disk(s), ${dataDisks.length} data disk(s) selected.</p>
     <div class="actions">
       <button class="secondary" id="btn-back">← Back</button>
       <button id="btn-next">Next →</button>
@@ -257,10 +287,101 @@ register('snapraid', () => {
   document.getElementById('btn-back').addEventListener('click', () => navigate('#pool'));
   document.getElementById('btn-next').addEventListener('click', async () => {
     const r = await post('/api/snapraid', {
-      parity_disks: parityDisks.map(d => `/dev/${d}`),
+      parity_disks: parityDisks.map(d => `/mnt/${d}`),
       data_mounts: dataDisks.map((_, i) => `/mnt/disk${i + 1}`),
-      scrub_schedule: document.getElementById('scrub-schedule').value,
       parity_mode: document.getElementById('parity-mode').value,
+      sync_time: document.getElementById('sync-time').value,
+      scrub_schedule: document.getElementById('scrub-schedule').value,
+    });
+    if (r.ok) navigate('#mover');
+  });
+});
+
+// ── Screen: NonRAID Configuration (5b) ───────────────────────────────────────
+
+register('nonraid', async () => {
+  const installResp = await fetch('/api/nonraid/install');
+  const installData = installResp.ok ? await installResp.json() : { installed: false };
+  const installed = installData.installed;
+
+  app().innerHTML = `
+    <h1>FugginNAS</h1>
+    <h2>Step 5b — NonRAID Configuration</h2>
+    <div class="notice warning">
+      <strong>Early-stage project</strong> — data loss possible. Always maintain external backups.
+      Write throughput is ~1/3 single-disk speed due to read-modify-write parity cycle.
+    </div>
+    <div class="form-group">
+      <label>NonRAID status
+        <span class="status-badge ${installed ? 'ok' : 'warn'}">${installed ? 'Installed' : 'Not installed'}</span>
+        ${!installed ? '<button id="btn-install" class="inline">Install NonRAID</button>' : ''}
+      </label>
+      <label>Parity mode
+        <select id="parity-mode">
+          <option value="single">Single parity</option>
+          <option value="dual">Dual parity (slot 29)</option>
+        </select>
+      </label>
+      <label>Per-disk filesystem
+        <select id="filesystem">
+          <option value="xfs">XFS (recommended)</option>
+          <option value="btrfs">BTRFS</option>
+          <option value="ext4">ext4</option>
+          <option value="zfs">ZFS (requires cachefile=none)</option>
+        </select>
+      </label>
+      <label>
+        <input type="checkbox" id="luks"> LUKS encryption per disk
+        <small>(keyfile: /etc/nonraid/luks-keyfile)</small>
+      </label>
+      <label>
+        <input type="checkbox" id="turbo-write"> Turbo write mode
+        <small>(reconstruct write — faster, keeps all disks spinning)</small>
+      </label>
+      <label>Parity check schedule
+        <select id="check-schedule">
+          <option value="quarterly">Quarterly (default)</option>
+          <option value="monthly">Monthly</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+    </div>
+    <div id="install-terminal" class="terminal" style="display:none"></div>
+    <div class="actions">
+      <button class="secondary" id="btn-back">← Back</button>
+      <button id="btn-next">Next →</button>
+    </div>
+  `;
+
+  document.getElementById('btn-back').addEventListener('click', () => navigate('#pool'));
+
+  const installBtn = document.getElementById('btn-install');
+  if (installBtn) {
+    installBtn.addEventListener('click', () => {
+      const terminal = document.getElementById('install-terminal');
+      terminal.style.display = 'block';
+      terminal.textContent = '';
+      fetch('/api/nonraid/install', { method: 'POST' }).then(r => {
+        const reader = r.body.getReader();
+        const decode = new TextDecoder();
+        const read = () => reader.read().then(({ done, value }) => {
+          if (done) return;
+          terminal.textContent += decode.decode(value);
+          terminal.scrollTop = terminal.scrollHeight;
+          read();
+        });
+        read();
+      });
+    });
+  }
+
+  document.getElementById('btn-next').addEventListener('click', async () => {
+    const r = await post('/api/nonraid/config', {
+      parity_mode: document.getElementById('parity-mode').value,
+      filesystem: document.getElementById('filesystem').value,
+      luks: document.getElementById('luks').checked,
+      turbo_write: document.getElementById('turbo-write').checked,
+      check_schedule: document.getElementById('check-schedule').value,
     });
     if (r.ok) navigate('#mover');
   });
@@ -269,9 +390,13 @@ register('snapraid', () => {
 // ── Screen: Mover Configuration ──────────────────────────────────────────────
 
 register('mover', () => {
+  const backTarget = _state.backend === 'mergerfs' ? '#pool'
+    : _state.backend === 'nonraid' ? '#nonraid'
+    : '#snapraid';
+
   app().innerHTML = `
     <h1>FugginNAS</h1>
-    <h2>Step 6 — Mover Configuration</h2>
+    <h2>Step 6 — Cache Mover</h2>
     <div class="form-group">
       <label>Run time (HH:MM)
         <input id="schedule-time" type="text" value="03:00">
@@ -289,7 +414,7 @@ register('mover', () => {
     </div>
   `;
 
-  document.getElementById('btn-back').addEventListener('click', () => navigate('#snapraid'));
+  document.getElementById('btn-back').addEventListener('click', () => navigate(backTarget));
   document.getElementById('btn-next').addEventListener('click', async () => {
     const r = await post('/api/mover', {
       schedule_time: document.getElementById('schedule-time').value,
@@ -320,21 +445,25 @@ register('shares', () => {
           <option value="both">Both SMB + NFS</option>
         </select>
       </label>
+      <label>
+        <input type="checkbox" id="smb-guest" checked> SMB guest access
+      </label>
     </div>
     <div class="actions">
       <button class="secondary" id="btn-back">← Back</button>
-      <button id="btn-next">Add share →</button>
+      <button id="btn-add">Add Share →</button>
       <button class="secondary" id="btn-skip">Skip →</button>
     </div>
   `;
 
   document.getElementById('btn-back').addEventListener('click', () => navigate('#mover'));
   document.getElementById('btn-skip').addEventListener('click', () => navigate('#summary'));
-  document.getElementById('btn-next').addEventListener('click', async () => {
+  document.getElementById('btn-add').addEventListener('click', async () => {
     const r = await post('/api/shares', {
       name: document.getElementById('share-name').value,
       path: document.getElementById('share-path').value,
       protocol: document.getElementById('share-protocol').value,
+      smb_guest_ok: document.getElementById('smb-guest').checked,
     });
     if (r.ok) navigate('#summary');
   });
@@ -366,6 +495,7 @@ register('summary', async () => {
       <thead><tr><th>File</th><th>Preview</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <div id="apply-terminal" class="terminal" style="display:none"></div>
     <div class="actions">
       <button class="secondary" id="btn-back">← Back</button>
       <button id="btn-apply">Apply Configuration</button>
@@ -373,9 +503,33 @@ register('summary', async () => {
   `;
 
   document.getElementById('btn-back').addEventListener('click', () => navigate('#shares'));
-  document.getElementById('btn-apply').addEventListener('click', async () => {
-    const r = await post('/api/apply', {});
-    if (r.ok) navigate('#status');
+
+  document.getElementById('btn-apply').addEventListener('click', () => {
+    const terminal = document.getElementById('apply-terminal');
+    terminal.style.display = 'block';
+    terminal.textContent = '';
+    document.getElementById('btn-apply').disabled = true;
+
+    fetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(r => {
+        const reader = r.body.getReader();
+        const decode = new TextDecoder();
+        let buf = '';
+        const read = () => reader.read().then(({ done, value }) => {
+          if (done) { setTimeout(() => navigate('#status'), 1500); return; }
+          buf += decode.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              terminal.textContent += line.slice(6) + '\n';
+              terminal.scrollTop = terminal.scrollHeight;
+            }
+          }
+          read();
+        });
+        read();
+      });
   });
 });
 
@@ -391,21 +545,55 @@ register('status', async () => {
   }
   const data = await resp.json();
 
+  const snapraidPanel = data.backend === 'snapraid' && data.snapraid ? `
+    <section class="panel">
+      <h3>SnapRAID</h3>
+      <table>
+        <tr><th>Last sync</th><td>${data.snapraid.sync.last_run || '—'}</td></tr>
+        <tr><th>Sync result</th><td>${data.snapraid.sync.result || '—'}</td></tr>
+        <tr><th>Sync errors</th><td>${data.snapraid.sync.errors ?? '—'}</td></tr>
+        <tr><th>Last scrub</th><td>${data.snapraid.scrub.last_run || '—'}</td></tr>
+        <tr><th>Scrub result</th><td>${data.snapraid.scrub.result || '—'}</td></tr>
+        <tr><th>Dirty files</th><td>${data.snapraid.dirty_files ?? '—'}</td></tr>
+      </table>
+      <div class="actions">
+        <button id="btn-sync-now">Run Sync Now</button>
+        <button id="btn-scrub-now">Run Scrub Now</button>
+      </div>
+    </section>
+  ` : '';
+
   app().innerHTML = `
     <h1>FugginNAS</h1>
     <h2>Status Dashboard</h2>
-    <table>
-      <tr><th>Backend</th><td>${data.backend || '—'}</td></tr>
-      <tr><th>Pool mount</th><td>${data.pool ? data.pool.mount : '—'}</td></tr>
-      <tr><th>Pool used</th><td>${data.pool ? (data.pool.used_pct || 0) + '%' : '—'}</td></tr>
-      <tr><th>Pool available</th><td>${data.pool ? formatBytes(data.pool.available_bytes || 0) : '—'}</td></tr>
-      <tr><th>Cache fill</th><td>${data.cache_fill_pct != null ? data.cache_fill_pct + '%' : '—'}</td></tr>
-      <tr><th>Shares</th><td>${(data.shares || []).length}</td></tr>
-    </table>
+    <section class="panel">
+      <h3>Pool</h3>
+      <table>
+        <tr><th>Backend</th><td>${data.backend || '—'}</td></tr>
+        <tr><th>Mount</th><td>${data.pool ? data.pool.mount : '—'}</td></tr>
+        <tr><th>Mounted</th><td>${data.pool ? (data.pool.mounted ? '✓ Yes' : '✗ No') : '—'}</td></tr>
+        <tr><th>Used</th><td>${data.pool ? (data.pool.used_pct || 0) + '%' : '—'}</td></tr>
+        <tr><th>Available</th><td>${data.pool ? formatBytes(data.pool.available_bytes || 0) : '—'}</td></tr>
+        <tr><th>Cache fill</th><td>${data.cache_fill_pct != null ? data.cache_fill_pct + '%' : '—'}</td></tr>
+      </table>
+    </section>
+    ${snapraidPanel}
+    <section class="panel">
+      <h3>Shares (${(data.shares || []).length})</h3>
+      <ul>${(data.shares || []).map(s => `<li>${s.name} — ${s.path} (${s.protocol})</li>`).join('') || '<li>None configured</li>'}</ul>
+    </section>
     <div class="actions">
+      <button id="btn-mover-now">Run Mover Now</button>
       <button class="secondary" id="btn-reconfigure">← Reconfigure</button>
     </div>
   `;
 
   document.getElementById('btn-reconfigure').addEventListener('click', () => navigate('#backend'));
+  document.getElementById('btn-mover-now').addEventListener('click', () => post('/api/mover/run', {}));
+
+  const syncBtn = document.getElementById('btn-sync-now');
+  if (syncBtn) syncBtn.addEventListener('click', () => post('/api/snapraid/sync', {}));
+
+  const scrubBtn = document.getElementById('btn-scrub-now');
+  if (scrubBtn) scrubBtn.addEventListener('click', () => post('/api/snapraid/scrub', {}));
 });

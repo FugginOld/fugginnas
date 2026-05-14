@@ -1,4 +1,3 @@
-import os
 import shutil
 from pathlib import Path
 
@@ -8,12 +7,54 @@ from system.nfs import generate_export_line
 from system.samba import generate_smb_block
 from system.snapraid_conf import generate_conf
 from system.state import read_state
+from system.systemd import (
+    mover_units,
+    snapraid_scrub_units,
+    snapraid_sync_units,
+    write_units,
+)
+
+_FSTAB_MARKER = "# FugginNAS mergerfs"
 
 
 def backup_fstab(fstab_path: str) -> None:
     src = Path(fstab_path)
     if src.exists():
-        shutil.copy2(src, str(src) + '.fugginnas.bak')
+        shutil.copy2(src, str(src) + ".fugginnas.bak")
+
+
+def _fstab_entry(state: dict) -> str:
+    sources = [state["cache_mount"]] + state.get("data_mounts", [])
+    line = build_mount_string(
+        sources=sources,
+        target=state["pool_mount"],
+        write_policy=state.get("write_policy", "mfs"),
+    )
+    return f"{_FSTAB_MARKER}\n{line}\n"
+
+
+def _append_or_update_fstab(fstab_path: str, entry: str) -> None:
+    path = Path(fstab_path)
+    existing = path.read_text() if path.exists() else ""
+    if _FSTAB_MARKER in existing:
+        lines = existing.splitlines(keepends=True)
+        out = []
+        skip_next = False
+        for line in lines:
+            if skip_next:
+                skip_next = False
+                continue
+            if line.strip() == _FSTAB_MARKER.strip():
+                out.append(entry)
+                skip_next = True
+            else:
+                out.append(line)
+        path.write_text("".join(out))
+    else:
+        with open(path, "a") as f:
+            if existing and not existing.endswith("\n"):
+                f.write("\n")
+            f.write(entry)
 
 
 def build_file_manifest() -> list[dict]:
@@ -21,7 +62,6 @@ def build_file_manifest() -> list[dict]:
     state = read_state()
     files = []
 
-    # /etc/snapraid.conf
     if state.get("backend") == "snapraid":
         conf = generate_conf(
             parity_disks=state.get("snapraid_parity_disks", []),
@@ -30,17 +70,21 @@ def build_file_manifest() -> list[dict]:
         )
         files.append({"path": "/etc/snapraid.conf", "content": conf})
 
-    # /etc/fstab additions (mergerfs mount)
-    if state.get("pool_mount"):
-        sources = [state["cache_mount"]] + state.get("data_mounts", [])
-        fstab_line = build_mount_string(
-            sources=sources,
-            target=state["pool_mount"],
-            write_policy=state.get("write_policy", "mfs"),
-        )
-        files.append({"path": "/etc/fstab", "content": fstab_line})
+        sync_time = state.get("snapraid_sync_time", "02:00")
+        for name, content in snapraid_sync_units(sync_time).items():
+            files.append({"path": f"/etc/systemd/system/{name}", "content": content})
 
-    # /usr/local/bin/FugginNAS-mover.sh
+        scrub_schedule = state.get("snapraid_scrub_schedule", "weekly")
+        if scrub_schedule != "off":
+            for name, content in snapraid_scrub_units(scrub_schedule).items():
+                files.append({"path": f"/etc/systemd/system/{name}", "content": content})
+
+    if state.get("pool_mount"):
+        files.append({
+            "path": "/etc/fstab",
+            "content": _fstab_entry(state),
+        })
+
     if state.get("cache_mount") and state.get("pool_mount"):
         script = generate_mover_script(
             cache_mount=state["cache_mount"],
@@ -50,7 +94,10 @@ def build_file_manifest() -> list[dict]:
         )
         files.append({"path": "/usr/local/bin/FugginNAS-mover.sh", "content": script})
 
-    # /etc/samba/smb.conf and /etc/exports
+        mover_time = state.get("mover_schedule_time", "03:00")
+        for name, content in mover_units(mover_time).items():
+            files.append({"path": f"/etc/systemd/system/{name}", "content": content})
+
     smb_blocks, nfs_lines = [], []
     for share in state.get("shares", []):
         if share["protocol"] in ("smb", "both"):
@@ -79,10 +126,14 @@ def apply_all() -> list[str]:
     manifest = build_file_manifest()
     written = []
     for entry in manifest:
-        if entry["path"] == "/etc/fstab":
+        path_str = entry["path"]
+        content = entry["content"]
+        if path_str == "/etc/fstab":
             backup_fstab("/etc/fstab")
-        path = Path(entry["path"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(entry["content"])
-        written.append(entry["path"])
+            _append_or_update_fstab("/etc/fstab", content)
+        else:
+            path = Path(path_str)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        written.append(path_str)
     return written

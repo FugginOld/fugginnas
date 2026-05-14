@@ -318,6 +318,25 @@ NONRAID_MOUNT_PREFIX=/mnt/disk
 NONRAID_NOTIFY_CMD=""   # e.g. "apprise -v -b" for push notifications
 ```
 
+### nmdctl command reference (researched 2026-05-14)
+
+| Command | Interactive? | Notes |
+| --- | --- | --- |
+| `nmdctl create` | **Yes — SSE only** | Assigns disks to slots interactively; no batch flags |
+| `nmdctl start` | No | Loads driver module + starts array |
+| `nmdctl stop` | No | Stops array |
+| `nmdctl mount [PREFIX]` | No | Mounts all nmd devices; default prefix `/mnt/disk` |
+| `nmdctl unmount` | No | Unmounts all, closes LUKS if present |
+| `nmdctl status [-o json\|default\|prometheus\|terse] [--verbose] [--no-fs]` | No | JSON output via `-o json` |
+| `nmdctl check [CORRECT\|NOCORRECT\|RESUME\|CANCEL\|PAUSE]` | No | Default NOCORRECT in unattended mode |
+| `nmdctl replace SLOT` | No | Replace a disk in an unassigned slot |
+| `nmdctl set md_write_method 1` | No | Enable turbo write mode |
+| `nmdctl -s /path/to/superblock.dat <cmd>` | — | Custom superblock path |
+
+- `/proc/nmdstat` — procfs status file (check progress, array state)
+- `/proc/nmdcmd` — procfs command interface (low-level; prefer nmdctl)
+- Default superblock: `/nonraid.dat`
+
 ### NonRAID API endpoints (routes/nonraid.py)
 
 ```
@@ -449,7 +468,7 @@ StandardError=append:/var/log/snapraid-sync.log
 - **Dual parity path:** UI shows single parity drive selector by default; "Enable dual parity" toggle reveals second drive selector. For SnapRAID adds `2-parity` line; for NonRAID assigns slot 29 as second parity.
 - **Backend state:** `state.json` records `parity_backend: "snapraid" | "nonraid" | "none"` — dashboard and all API routes branch on this value
 - **NonRAID + mergerfs layering:** NonRAID creates `/dev/nmdXp1` virtual block devices; filesystems are created on those; mergerfs pools the mount points. Never mount raw `/dev/sdX` directly — NonRAID enforces parity only through nmd devices.
-- **NonRAID nmdctl interactivity:** `nmdctl create` is interactive. FugginNAS streams it via SSE in a terminal pane during apply. Post-create, `nmdctl start` and `nmdctl mount` are called non-interactively.
+- **NonRAID nmdctl interactivity:** `nmdctl create` is **interactive-only** — no non-interactive flags exist. FugginNAS streams it via SSE in a terminal pane during the NonRAID apply step. Post-create, `nmdctl start` and `nmdctl mount` are called non-interactively. A procfs interface (`/proc/nmdcmd`) exists for programmatic control but is undocumented; use SSE streaming instead.
 - **NonRAID kernel headers:** install.sh must install `linux-headers-amd64` meta-package (not just current kernel headers) so DKMS rebuilds on kernel updates automatically.
 - **Drive safety:** Warn loudly (modal confirmation) before any drive is formatted or mounted
 - **No format (SnapRAID path):** FugginNAS does NOT format drives — user must pre-format. Wizard validates filesystem exists on each tagged drive before proceeding.

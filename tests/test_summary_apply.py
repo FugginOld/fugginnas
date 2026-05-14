@@ -1,6 +1,6 @@
 import json
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock  # noqa: F401 — MagicMock used in apply tests
 
 
 FULL_STATE = {
@@ -61,24 +61,38 @@ def test_get_summary_includes_content_preview(client):
 
 # --- POST /api/apply ---
 
-def test_post_apply_returns_200(client):
-    with patch("routes.apply.apply_all") as mock_apply:
+def test_post_apply_returns_event_stream(client):
+    with patch("routes.apply.apply_all") as mock_apply, \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
+        mock_sub.return_value = MagicMock(returncode=0, stderr="")
         resp = client.post("/api/apply")
-    assert resp.status_code == 200
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.content_type
 
 
 def test_post_apply_calls_apply_all(client):
-    with patch("routes.apply.apply_all") as mock_apply:
+    with patch("routes.apply.apply_all") as mock_apply, \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
-        client.post("/api/apply")
-    mock_apply.assert_called_once()
-
-
-def test_post_apply_returns_applied_files(client):
-    with patch("routes.apply.apply_all") as mock_apply:
-        mock_apply.return_value = ["/etc/snapraid.conf", "/usr/local/bin/FugginNAS-mover.sh"]
+        mock_sub.return_value = MagicMock(returncode=0, stderr="")
         resp = client.post("/api/apply")
-    data = resp.get_json()
-    assert "applied" in data
-    assert "/etc/snapraid.conf" in data["applied"]
+        _ = resp.data  # consume SSE stream so generator executes
+        mock_apply.assert_called_once()
+
+
+def test_post_apply_streams_file_paths(client):
+    with patch("routes.apply.apply_all") as mock_apply, \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("subprocess.run") as mock_sub:
+        mock_apply.return_value = ["/etc/snapraid.conf", "/usr/local/bin/FugginNAS-mover.sh"]
+        mock_sub.return_value = MagicMock(returncode=0, stderr="")
+        resp = client.post("/api/apply")
+        body = resp.data.decode()
+    assert "/etc/snapraid.conf" in body
+    assert "Apply complete" in body

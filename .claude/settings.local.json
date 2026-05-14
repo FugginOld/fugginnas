@@ -33,7 +33,9 @@
       "Bash(python -m pytest tests/test_auth.py --tb=short -q)",
       "Bash(python -m pytest tests/test_apply_backup.py --tb=short -q)",
       "Bash(python -m pytest tests/test_snapraid_dryrun.py --tb=short -q)",
-      "mcp__plugin_context-mode_context-mode__ctx_index"
+      "mcp__plugin_context-mode_context-mode__ctx_index",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file"
     ]
   }
 }

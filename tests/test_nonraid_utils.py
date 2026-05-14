@@ -1,56 +1,158 @@
-from system.nonraid_utils import generate_mdadm_create, generate_fstab_line
+from unittest.mock import patch, MagicMock, mock_open
+import subprocess
+import json
+
+from system.nonraid_utils import (
+    nmdctl_status,
+    nmdctl_start,
+    nmdctl_stop,
+    nmdctl_mount,
+    nmdctl_unmount,
+    parse_nmdstat,
+    is_nonraid_installed,
+)
 
 
-def test_generate_mdadm_create_basic():
-    cmd = generate_mdadm_create(['/dev/sdb', '/dev/sdc'], level=1)
-    assert '--create' in cmd
-    assert '/dev/md0' in cmd
-    assert '--level=1' in cmd
-    assert '/dev/sdb' in cmd
-    assert '/dev/sdc' in cmd
+def _make_proc(returncode=0, stdout="", stderr=""):
+    p = MagicMock(spec=subprocess.CompletedProcess)
+    p.returncode = returncode
+    p.stdout = stdout
+    p.stderr = stderr
+    return p
 
 
-def test_generate_mdadm_create_raid_device_count():
-    cmd = generate_mdadm_create(['/dev/sdb', '/dev/sdc', '/dev/sdd'], level=5)
-    assert '--raid-devices=3' in cmd
+# ── nmdctl_status ─────────────────────────────────────────────────────────────
+
+def test_nmdctl_status_returns_dict_on_success():
+    payload = {"state": "STARTED", "disks": []}
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, json.dumps(payload))):
+        result = nmdctl_status()
+    assert result["state"] == "STARTED"
 
 
-def test_generate_mdadm_create_custom_name():
-    cmd = generate_mdadm_create(['/dev/sdb', '/dev/sdc'], level=0, name='md1')
-    assert '/dev/md1' in cmd
+def test_nmdctl_status_returns_unknown_on_failure():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(1, stderr="no device")):
+        result = nmdctl_status()
+    assert result["state"] == "UNKNOWN"
+    assert "error" in result
 
 
-def test_generate_mdadm_create_includes_all_devices():
-    devices = ['/dev/sdb', '/dev/sdc', '/dev/sdd', '/dev/sde']
-    cmd = generate_mdadm_create(devices, level=6)
-    for d in devices:
-        assert d in cmd
+def test_nmdctl_status_handles_invalid_json():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, stdout="not-json")):
+        result = nmdctl_status()
+    assert "error" in result
 
 
-def test_generate_mdadm_create_level_6():
-    cmd = generate_mdadm_create(['/dev/sdb', '/dev/sdc'], level=6)
-    assert '--level=6' in cmd
+# ── nmdctl_start ──────────────────────────────────────────────────────────────
+
+def test_nmdctl_start_returns_true_on_success():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, stdout="started")):
+        ok, msg = nmdctl_start()
+    assert ok is True
+    assert "started" in msg
 
 
-def test_generate_mdadm_create_level_10():
-    cmd = generate_mdadm_create(['/dev/sdb', '/dev/sdc', '/dev/sdd', '/dev/sde'], level=10)
-    assert '--level=10' in cmd
-    assert '--raid-devices=4' in cmd
+def test_nmdctl_start_returns_false_on_failure():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(1, stderr="driver error")):
+        ok, msg = nmdctl_start()
+    assert ok is False
+    assert "driver error" in msg
 
 
-def test_generate_fstab_line_basic():
-    line = generate_fstab_line('/dev/md0', '/mnt/raid')
-    assert '/dev/md0' in line
-    assert '/mnt/raid' in line
-    assert 'ext4' in line
+# ── nmdctl_stop ───────────────────────────────────────────────────────────────
+
+def test_nmdctl_stop_returns_true_on_success():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, stdout="stopped")):
+        ok, msg = nmdctl_stop()
+    assert ok is True
 
 
-def test_generate_fstab_line_custom_fstype():
-    line = generate_fstab_line('/dev/md0', '/mnt/raid', fstype='xfs')
-    assert 'xfs' in line
+def test_nmdctl_stop_returns_false_on_failure():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(1, stderr="busy")):
+        ok, msg = nmdctl_stop()
+    assert ok is False
 
 
-def test_generate_fstab_line_has_options():
-    line = generate_fstab_line('/dev/md0', '/mnt/raid')
-    parts = line.split()
-    assert len(parts) >= 4
+# ── nmdctl_mount ──────────────────────────────────────────────────────────────
+
+def test_nmdctl_mount_returns_true_on_success():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, stdout="mounted")):
+        ok, msg = nmdctl_mount()
+    assert ok is True
+
+
+def test_nmdctl_mount_passes_prefix():
+    captured = []
+    def fake_run(cmd):
+        captured.append(cmd)
+        return _make_proc(0)
+    with patch("system.nonraid_utils._run", side_effect=fake_run):
+        nmdctl_mount(prefix="/mnt/data")
+    assert "/mnt/data" in captured[0]
+
+
+def test_nmdctl_mount_default_prefix():
+    captured = []
+    def fake_run(cmd):
+        captured.append(cmd)
+        return _make_proc(0)
+    with patch("system.nonraid_utils._run", side_effect=fake_run):
+        nmdctl_mount()
+    assert "/mnt/disk" in captured[0]
+
+
+# ── nmdctl_unmount ────────────────────────────────────────────────────────────
+
+def test_nmdctl_unmount_returns_true_on_success():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(0, stdout="unmounted")):
+        ok, msg = nmdctl_unmount()
+    assert ok is True
+
+
+def test_nmdctl_unmount_returns_false_on_failure():
+    with patch("system.nonraid_utils._run", return_value=_make_proc(1, stderr="device busy")):
+        ok, msg = nmdctl_unmount()
+    assert ok is False
+
+
+# ── parse_nmdstat ─────────────────────────────────────────────────────────────
+
+def test_parse_nmdstat_returns_dict():
+    content = "mdResync=0\nmdState=idle\n"
+    with patch("builtins.open", mock_open(read_data=content)):
+        result = parse_nmdstat()
+    assert isinstance(result, dict)
+
+
+def test_parse_nmdstat_returns_empty_on_missing_file():
+    with patch("builtins.open", side_effect=OSError("no such file")):
+        result = parse_nmdstat()
+    assert result == {}
+
+
+def test_parse_nmdstat_key_value_parsing():
+    content = "mdResync=1234\nmdState=resync\n"
+    with patch("builtins.open", mock_open(read_data=content)):
+        result = parse_nmdstat()
+    assert result.get("mdResync") == "1234"
+    assert result.get("mdState") == "resync"
+
+
+# ── is_nonraid_installed ──────────────────────────────────────────────────────
+
+def test_is_nonraid_installed_true_when_dkms_shows_nonraid():
+    with patch("system.nonraid_utils._run",
+               return_value=_make_proc(0, stdout="nonraid/1.0, 5.15.0, installed")):
+        assert is_nonraid_installed() is True
+
+
+def test_is_nonraid_installed_false_when_not_present():
+    with patch("system.nonraid_utils._run",
+               return_value=_make_proc(0, stdout="zfs/2.1.0, 5.15.0, installed")):
+        assert is_nonraid_installed() is False
+
+
+def test_is_nonraid_installed_false_when_dkms_fails():
+    with patch("system.nonraid_utils._run",
+               return_value=_make_proc(1, stdout="")):
+        assert is_nonraid_installed() is False

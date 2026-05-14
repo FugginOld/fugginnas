@@ -29,6 +29,7 @@ def test_apply_all_calls_backup_fstab(tmp_path, monkeypatch):
         "write_policy": "mfs",
     })
     with patch("system.apply_utils.backup_fstab") as mock_backup, \
+         patch("system.apply_utils._append_or_update_fstab"), \
          patch("pathlib.Path.mkdir"), \
          patch("pathlib.Path.write_text"):
         apply_all()
