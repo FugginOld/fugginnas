@@ -11,6 +11,7 @@ from routes.shares import shares_bp
 from routes.snapraid import snapraid_bp
 from routes.status import status_bp
 from routes.summary import summary_bp
+from routes.theme import theme_bp
 
 
 def create_app() -> Flask:
@@ -31,6 +32,7 @@ def create_app() -> Flask:
     app.register_blueprint(summary_bp)
     app.register_blueprint(apply_bp)
     app.register_blueprint(status_bp)
+    app.register_blueprint(theme_bp)
     return app
 
 

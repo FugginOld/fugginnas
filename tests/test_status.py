@@ -3,6 +3,16 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 
+NONRAID_STATE = {
+    "backend": "nonraid",
+    "pool_mount": "/mnt/pool",
+    "cache_mount": "/mnt/cache",
+    "nonraid_parity_disks": ["/dev/sdb"],
+    "nonraid_data_disks": ["/dev/sdc", "/dev/sdd"],
+    "nonraid_parity_mode": "single",
+    "shares": [],
+}
+
 FULL_STATE = {
     "backend": "snapraid",
     "pool_mount": "/mnt/pool",
@@ -26,6 +36,18 @@ DF_OUTPUT = (
 def client(tmp_path, monkeypatch):
     state_file = tmp_path / "state.json"
     state_file.write_text(json.dumps(FULL_STATE))
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
+    from app import create_app
+    app = create_app()
+    app.config["TESTING"] = True
+    with app.test_client() as c:
+        yield c
+
+
+@pytest.fixture
+def nonraid_client(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps(NONRAID_STATE))
     monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
     from app import create_app
     app = create_app()
@@ -74,3 +96,178 @@ def test_get_status_has_backend_field(client):
         resp = client.get("/api/status")
     data = resp.get_json()
     assert data["backend"] == "snapraid"
+
+
+# ── NonRAID status panel ──────────────────────────────────────────────────────
+
+def test_nonraid_status_has_nonraid_key(nonraid_client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)), \
+         patch("system.status.nmdctl_status", return_value={"state": "STARTED"}):
+        resp = nonraid_client.get("/api/status")
+    assert "nonraid" in resp.get_json()
+
+
+def test_nonraid_status_state_from_nmdctl(nonraid_client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)), \
+         patch("system.status.nmdctl_status", return_value={"state": "STOPPED"}):
+        resp = nonraid_client.get("/api/status")
+    assert resp.get_json()["nonraid"]["state"] == "STOPPED"
+
+
+def test_nonraid_status_includes_parity_disks(nonraid_client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)), \
+         patch("system.status.nmdctl_status", return_value={"state": "STARTED"}):
+        resp = nonraid_client.get("/api/status")
+    assert resp.get_json()["nonraid"]["parity_disks"] == ["/dev/sdb"]
+
+
+def test_nonraid_status_includes_data_disks(nonraid_client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)), \
+         patch("system.status.nmdctl_status", return_value={"state": "STARTED"}):
+        resp = nonraid_client.get("/api/status")
+    assert resp.get_json()["nonraid"]["data_disks"] == ["/dev/sdc", "/dev/sdd"]
+
+
+def test_snapraid_backend_has_no_nonraid_key(client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = client.get("/api/status")
+    assert "nonraid" not in resp.get_json()
+
+
+# ── Live share status ─────────────────────────────────────────────────────────
+
+SHARES_STATE = {
+    "backend": "snapraid",
+    "pool_mount": "/mnt/pool",
+    "cache_mount": "/mnt/cache",
+    "shares": [
+        {"name": "media", "path": "/mnt/pool/media", "protocol": "smb"},
+        {"name": "backup", "path": "/mnt/pool/backup", "protocol": "nfs"},
+        {"name": "docs",   "path": "/mnt/pool/docs",   "protocol": "both"},
+    ],
+}
+
+
+@pytest.fixture
+def shares_client(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps(SHARES_STATE))
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
+    from app import create_app
+    app = create_app()
+    app.config["TESTING"] = True
+    with app.test_client() as c:
+        yield c
+
+
+def _patch_shares(smbd=True, nfsd=True, path_exists=True, smb_ok=True, nfs_ok=True):
+    """Return a subprocess.run side_effect that dispatches by command."""
+    def _run(cmd, **kwargs):
+        m = MagicMock()
+        if "systemctl" in cmd:
+            svc = cmd[-1]
+            m.returncode = 0 if (smbd if svc == "smbd" else nfsd) else 1
+        elif "smbclient" in cmd:
+            m.returncode = 0 if smb_ok else 1
+            m.stdout = ""
+        elif "showmount" in cmd:
+            m.returncode = 0 if nfs_ok else 1
+            m.stdout = "/mnt/pool/backup 192.168.0.0/16\n/mnt/pool/docs 192.168.0.0/16\n" if nfs_ok else ""
+        else:
+            m.returncode = 0
+            m.stdout = DF_OUTPUT
+        return m
+    return _run
+
+
+def test_shares_status_has_services_key(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()):
+        data = shares_client.get("/api/status").get_json()
+    assert "services" in data
+
+
+def test_shares_status_smbd_running(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(smbd=True)):
+        data = shares_client.get("/api/status").get_json()
+    assert data["services"]["smbd"] is True
+
+
+def test_shares_status_smbd_stopped(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(smbd=False)):
+        data = shares_client.get("/api/status").get_json()
+    assert data["services"]["smbd"] is False
+
+
+def test_shares_status_nfsd_running(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(nfsd=True)):
+        data = shares_client.get("/api/status").get_json()
+    assert data["services"]["nfs_server"] is True
+
+
+def test_shares_per_share_has_path_exists(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()), \
+         patch("system.status.Path.exists", return_value=True):
+        data = shares_client.get("/api/status").get_json()
+    assert all("path_exists" in s for s in data["shares"])
+
+
+def test_shares_path_exists_true_when_present(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    assert all(s["path_exists"] is True for s in shares)
+
+
+def test_shares_path_exists_false_when_missing(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()), \
+         patch("system.status.Path.exists", return_value=False):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    assert all(s["path_exists"] is False for s in shares)
+
+
+def test_shares_smb_reachable_true(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(smb_ok=True)), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    smb_shares = [s for s in shares if s.get("smb_reachable") is not None]
+    assert all(s["smb_reachable"] is True for s in smb_shares)
+
+
+def test_shares_smb_reachable_false_when_unreachable(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(smb_ok=False)), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    smb_shares = [s for s in shares if s.get("smb_reachable") is not None]
+    assert all(s["smb_reachable"] is False for s in smb_shares)
+
+
+def test_shares_nfs_reachable_true(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(nfs_ok=True)), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    nfs_shares = [s for s in shares if s.get("nfs_reachable") is not None]
+    assert all(s["nfs_reachable"] is True for s in nfs_shares)
+
+
+def test_shares_nfs_reachable_false_when_not_exported(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares(nfs_ok=False)), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    nfs_shares = [s for s in shares if s.get("nfs_reachable") is not None]
+    assert all(s["nfs_reachable"] is False for s in nfs_shares)
+
+
+def test_shares_smb_only_has_no_nfs_reachable(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    media = next(s for s in shares if s["name"] == "media")
+    assert "nfs_reachable" not in media
+
+
+def test_shares_nfs_only_has_no_smb_reachable(shares_client):
+    with patch("system.status.subprocess.run", side_effect=_patch_shares()), \
+         patch("system.status.Path.exists", return_value=True):
+        shares = shares_client.get("/api/status").get_json()["shares"]
+    backup = next(s for s in shares if s["name"] == "backup")
+    assert "smb_reachable" not in backup

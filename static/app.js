@@ -3,6 +3,46 @@
 const _routes = {};
 const _state = {};
 
+const THEMES = [
+  "default", "nord", "dracula", "solarized-dark", "gruvbox",
+  "monokai", "catppuccin", "tokyo-night", "one-dark",
+  "material", "github-dark", "synthwave",
+  "tron-blue", "tron-red",
+];
+
+function applyTheme(name) {
+  document.documentElement.dataset.theme = name === 'default' ? '' : name;
+}
+
+async function loadTheme() {
+  try {
+    const resp = await fetch('/api/theme');
+    if (resp.ok) {
+      const { theme } = await resp.json();
+      applyTheme(theme);
+      const sel = document.getElementById('theme-select');
+      if (sel) sel.value = theme;
+    }
+  } catch (_) {}
+}
+
+function mountThemePicker() {
+  const picker = document.createElement('div');
+  picker.id = 'theme-picker';
+  picker.innerHTML = `
+    Theme:
+    <select id="theme-select">
+      ${THEMES.map(t => `<option value="${t}">${t}</option>`).join('')}
+    </select>
+  `;
+  document.body.appendChild(picker);
+  picker.querySelector('#theme-select').addEventListener('change', async (e) => {
+    const name = e.target.value;
+    applyTheme(name);
+    await post('/api/theme', { theme: name });
+  });
+}
+
 function register(hash, fn) { _routes[hash] = fn; }
 function navigate(hash) { location.hash = hash; }
 function app() { return document.getElementById('app'); }
@@ -14,7 +54,11 @@ function render() {
 }
 
 window.addEventListener('hashchange', render);
-window.addEventListener('DOMContentLoaded', render);
+window.addEventListener('DOMContentLoaded', () => {
+  mountThemePicker();
+  loadTheme();
+  render();
+});
 
 function formatBytes(bytes) {
   if (bytes >= 1e12) return (bytes / 1e12).toFixed(1) + ' TB';
@@ -87,23 +131,26 @@ register('backend', () => {
         <tr><td>Unsynced file risk</td><td>None</td><td>Until next sync</td><td>N/A</td></tr>
         <tr><td>Accidental delete</td><td>Not protected</td><td>Protected until sync</td><td>Not protected</td></tr>
         <tr><td>Recovery model</td><td>Drive rebuild</td><td>Per-file restore</td><td>None</td></tr>
+        <tr><td>Uses MergerFS pool</td><td>Yes — required</td><td>Yes — required</td><td>Yes — only layer</td></tr>
       </tbody>
     </table>
+    <p class="info-note">All three options use <strong>MergerFS</strong> to present your disks as a single pool mount.
+    NonRAID and SnapRAID add a parity layer on top of that — they are not alternatives to MergerFS.</p>
     <div class="option-group">
       <label class="option">
         <input type="radio" name="backend" value="snapraid" ${current === 'snapraid' || !current ? 'checked' : ''}>
         <span>SnapRAID + MergerFS</span>
-        <small>Scheduled parity — lower write overhead, recovery via sync</small>
+        <small>Scheduled parity — full write speed, recovery via nightly sync</small>
       </label>
       <label class="option">
         <input type="radio" name="backend" value="nonraid" ${current === 'nonraid' ? 'checked' : ''}>
         <span>NonRAID + MergerFS</span>
-        <small>Live real-time parity — unRAID-style kernel driver</small>
+        <small>Live real-time parity — unRAID-style kernel driver, ~1/3 write penalty</small>
       </label>
       <label class="option">
         <input type="radio" name="backend" value="mergerfs" ${current === 'mergerfs' ? 'checked' : ''}>
         <span>MergerFS only</span>
-        <small>Pooling only — no parity protection</small>
+        <small>Pooling with no parity — full speed, no drive failure protection</small>
       </label>
     </div>
     <div class="actions">
@@ -316,10 +363,12 @@ register('nonraid', async () => {
         <span class="status-badge ${installed ? 'ok' : 'warn'}">${installed ? 'Installed' : 'Not installed'}</span>
         ${!installed ? '<button id="btn-install" class="inline">Install NonRAID</button>' : ''}
       </label>
+
+      <h3>Array</h3>
       <label>Parity mode
         <select id="parity-mode">
-          <option value="single">Single parity</option>
-          <option value="dual">Dual parity (slot 29)</option>
+          <option value="single">Single parity (1 parity disk)</option>
+          <option value="dual">Dual parity (2 parity disks — slot 29)</option>
         </select>
       </label>
       <label>Per-disk filesystem
@@ -330,20 +379,37 @@ register('nonraid', async () => {
           <option value="zfs">ZFS (requires cachefile=none)</option>
         </select>
       </label>
-      <label>
-        <input type="checkbox" id="luks"> LUKS encryption per disk
-        <small>(keyfile: /etc/nonraid/luks-keyfile)</small>
-      </label>
+
+      <h3>Write Behavior</h3>
       <label>
         <input type="checkbox" id="turbo-write"> Turbo write mode
-        <small>(reconstruct write — faster, keeps all disks spinning)</small>
+        <small>Reconstruct-write — faster writes, but keeps all disks spinning constantly</small>
       </label>
-      <label>Parity check schedule
+
+      <h3>Encryption</h3>
+      <label>
+        <input type="checkbox" id="luks"> LUKS encryption per disk
+        <small>Keyfile stored at /etc/nonraid/luks-keyfile — back it up or lose all data</small>
+      </label>
+
+      <h3>Parity Check</h3>
+      <label>Check schedule
         <select id="check-schedule">
-          <option value="quarterly">Quarterly (default)</option>
+          <option value="quarterly">Quarterly (recommended)</option>
           <option value="monthly">Monthly</option>
           <option value="off">Off</option>
         </select>
+      </label>
+      <label>Correction mode
+        <select id="check-correct">
+          <option value="nocorrect">NOCORRECT — report errors only (recommended)</option>
+          <option value="correct">CORRECT — auto-repair mismatches</option>
+        </select>
+        <small>NOCORRECT is safer: review results before deciding to repair</small>
+      </label>
+      <label>Check speed limit
+        <input type="number" id="check-speed" value="200" min="10" max="1000" step="10"> MB/s
+        <small>Lower values reduce I/O impact during a check (default 200 MB/s)</small>
       </label>
     </div>
     <div id="install-terminal" class="terminal" style="display:none"></div>
@@ -376,22 +442,168 @@ register('nonraid', async () => {
   }
 
   document.getElementById('btn-next').addEventListener('click', async () => {
+    const parityMode = document.getElementById('parity-mode').value;
+    const filesystem = document.getElementById('filesystem').value;
     const r = await post('/api/nonraid/config', {
-      parity_mode: document.getElementById('parity-mode').value,
-      filesystem: document.getElementById('filesystem').value,
-      luks: document.getElementById('luks').checked,
+      parity_mode: parityMode,
+      filesystem,
       turbo_write: document.getElementById('turbo-write').checked,
+      luks: document.getElementById('luks').checked,
       check_schedule: document.getElementById('check-schedule').value,
+      check_correct: document.getElementById('check-correct').value === 'correct',
+      check_speed_limit: parseInt(document.getElementById('check-speed').value, 10),
     });
-    if (r.ok) navigate('#mover');
+    if (r.ok) {
+      _state.nonraid_parity_mode = parityMode;
+      _state.nonraid_filesystem = filesystem;
+      navigate('#nonraid-roles');
+    }
   });
+});
+
+// ── Screen: NonRAID Role Assignment (5c) ─────────────────────────────────────
+
+register('nonraid-roles', async () => {
+  const drivesResp = await fetch('/api/drives');
+  const drives = drivesResp.ok ? await drivesResp.json() : [];
+  const parityMode = _state.nonraid_parity_mode || 'single';
+  const parityCount = parityMode === 'dual' ? 2 : 1;
+
+  const rows = drives.map(d => `
+    <tr>
+      <td><code>/dev/${d.name}</code></td>
+      <td>${d.model || '—'}</td>
+      <td>${(d.size / 1e9).toFixed(0)} GB</td>
+      <td>
+        <select id="role-${d.name}">
+          <option value="skip">Skip (not in array)</option>
+          <option value="parity">Parity</option>
+          <option value="data">Data</option>
+        </select>
+      </td>
+    </tr>
+  `).join('');
+
+  app().innerHTML = `
+    <h1>FugginNAS</h1>
+    <h2>Step 5c — Assign Drive Roles</h2>
+    <p>Assign each drive a role in the NonRAID array.
+       Parity mode is <strong>${parityMode}</strong> — you must assign exactly
+       <strong>${parityCount}</strong> parity drive(s).</p>
+    <table>
+      <thead><tr><th>Drive</th><th>Model</th><th>Size</th><th>Role</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div id="role-error" class="error" style="display:none"></div>
+    <div class="actions">
+      <button class="secondary" id="btn-back">← Back</button>
+      <button id="btn-next">Next →</button>
+    </div>
+  `;
+
+  document.getElementById('btn-back').addEventListener('click', () => navigate('#nonraid'));
+
+  document.getElementById('btn-next').addEventListener('click', async () => {
+    const errEl = document.getElementById('role-error');
+    errEl.style.display = 'none';
+    const parity = drives
+      .filter(d => document.getElementById(`role-${d.name}`).value === 'parity')
+      .map(d => `/dev/${d.name}`);
+    const data = drives
+      .filter(d => document.getElementById(`role-${d.name}`).value === 'data')
+      .map(d => `/dev/${d.name}`);
+
+    if (parity.length !== parityCount) {
+      errEl.textContent = `Select exactly ${parityCount} parity drive(s) (you selected ${parity.length}).`;
+      errEl.style.display = 'block';
+      return;
+    }
+    if (data.length === 0) {
+      errEl.textContent = 'Select at least one data drive.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const r = await post('/api/nonraid/roles', { parity_disks: parity, data_disks: data });
+    if (r.ok) {
+      _state.nonraid_parity_disks = parity;
+      _state.nonraid_data_disks = data;
+      navigate('#nonraid-prep');
+    }
+  });
+});
+
+// ── Screen: NonRAID Disk Preparation (5d) ────────────────────────────────────
+
+function _mkfsCmd(fs, partition) {
+  if (fs === 'xfs')   return `mkfs.xfs -f ${partition}`;
+  if (fs === 'btrfs') return `mkfs.btrfs -f ${partition}`;
+  if (fs === 'ext4')  return `mkfs.ext4 -F ${partition}`;
+  if (fs === 'zfs')   return `zpool create disk${partition.replace(/[^0-9]/g, '')} ${partition}`;
+  return `mkfs.${fs} ${partition}`;
+}
+
+register('nonraid-prep', () => {
+  const parityDisks = _state.nonraid_parity_disks || [];
+  const dataDisks = _state.nonraid_data_disks || [];
+  const fs = _state.nonraid_filesystem || 'xfs';
+
+  const parityBlocks = parityDisks.map(dev => `
+    <div class="prep-block">
+      <strong>${dev} — Parity</strong>
+      <pre># WARNING: erases all data on ${dev}
+sgdisk --zap-all ${dev}
+sgdisk -n 1:0:0 -t 1:fd00 ${dev}</pre>
+    </div>
+  `).join('');
+
+  const dataBlocks = dataDisks.map(dev => `
+    <div class="prep-block">
+      <strong>${dev} — Data</strong>
+      <pre># WARNING: erases all data on ${dev}
+sgdisk --zap-all ${dev}
+sgdisk -n 1:0:0 -t 1:8300 ${dev}
+${_mkfsCmd(fs, dev + '1')}</pre>
+    </div>
+  `).join('');
+
+  app().innerHTML = `
+    <h1>FugginNAS</h1>
+    <h2>Step 5d — Prepare Disks</h2>
+    <div class="notice warning">
+      <strong>These commands permanently erase all data on the listed drives.</strong>
+      Run them in a terminal on the NAS host before clicking Proceed.
+    </div>
+    ${parityBlocks}
+    ${dataBlocks}
+    <div class="prep-block">
+      <strong>Create the array (interactive)</strong>
+      <pre>nmdctl create</pre>
+      <small>nmdctl create is interactive — it will prompt you to confirm disk assignments in the terminal.</small>
+    </div>
+    <label style="margin-top:1rem;display:flex;gap:.5rem;align-items:center">
+      <input type="checkbox" id="prep-done">
+      I have run all commands above and the array was created successfully.
+    </label>
+    <div class="actions">
+      <button class="secondary" id="btn-back">← Back</button>
+      <button id="btn-next" disabled>Proceed →</button>
+    </div>
+  `;
+
+  document.getElementById('btn-back').addEventListener('click', () => navigate('#nonraid-roles'));
+
+  const checkbox = document.getElementById('prep-done');
+  const nextBtn = document.getElementById('btn-next');
+  checkbox.addEventListener('change', () => { nextBtn.disabled = !checkbox.checked; });
+  nextBtn.addEventListener('click', () => navigate('#mover'));
 });
 
 // ── Screen: Mover Configuration ──────────────────────────────────────────────
 
 register('mover', () => {
   const backTarget = _state.backend === 'mergerfs' ? '#pool'
-    : _state.backend === 'nonraid' ? '#nonraid'
+    : _state.backend === 'nonraid' ? '#nonraid-prep'
     : '#snapraid';
 
   app().innerHTML = `

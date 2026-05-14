@@ -79,6 +79,16 @@ def build_file_manifest() -> list[dict]:
             for name, content in snapraid_scrub_units(scrub_schedule).items():
                 files.append({"path": f"/etc/systemd/system/{name}", "content": content})
 
+    if state.get("backend") == "nonraid":
+        speed_mb = state.get("nonraid_check_speed_limit", 200)
+        speed_kb = speed_mb * 1024
+        sysctl_content = (
+            "# FugginNAS NonRAID — parity check speed limit\n"
+            f"dev.raid.speed_limit_max = {speed_kb}\n"
+            f"dev.raid.speed_limit_min = {min(speed_kb, 1000)}\n"
+        )
+        files.append({"path": "/etc/sysctl.d/99-nonraid.conf", "content": sysctl_content})
+
     if state.get("pool_mount"):
         files.append({
             "path": "/etc/fstab",

@@ -18,6 +18,8 @@ VALID_CONFIG = {
     "luks": False,
     "turbo_write": False,
     "check_schedule": "quarterly",
+    "check_correct": False,
+    "check_speed_limit": 200,
 }
 
 
@@ -120,6 +122,37 @@ def test_post_nonraid_config_all_filesystems(client):
         assert resp.status_code == 200
 
 
+def test_post_nonraid_config_persists_check_correct(client):
+    c, state_file = client
+    c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_correct": True})
+    assert json.loads(state_file.read_text())["nonraid_check_correct"] is True
+
+
+def test_post_nonraid_config_persists_check_speed_limit(client):
+    c, state_file = client
+    c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": 100})
+    assert json.loads(state_file.read_text())["nonraid_check_speed_limit"] == 100
+
+
+def test_post_nonraid_config_invalid_speed_limit_too_low(client):
+    c, _ = client
+    resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": 5})
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_config_invalid_speed_limit_too_high(client):
+    c, _ = client
+    resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": 9999})
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_config_speed_limit_boundary(client):
+    c, _ = client
+    for limit in (10, 200, 1000):
+        resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": limit})
+        assert resp.status_code == 200
+
+
 # ── /api/nonraid/start / stop / mount / unmount ───────────────────────────────
 
 def test_post_nonraid_start_ok(client, monkeypatch):
@@ -173,3 +206,102 @@ def test_get_nonraid_check_status_returns_200(client, monkeypatch):
     c, _ = client
     resp = c.get("/api/nonraid/check/status")
     assert resp.status_code == 200
+
+
+# ── /api/nonraid/roles POST ───────────────────────────────────────────────────
+
+def _set_parity_mode(client, mode):
+    c, _ = client
+    c.post("/api/nonraid/config", json={**VALID_CONFIG, "parity_mode": mode})
+
+
+def test_post_nonraid_roles_returns_200(client):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc"],
+    })
+    assert resp.status_code == 200
+
+
+def test_post_nonraid_roles_persists_parity_disks(client):
+    _set_parity_mode(client, "single")
+    c, state_file = client
+    c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc"],
+    })
+    state = json.loads(state_file.read_text())
+    assert state["nonraid_parity_disks"] == ["/dev/sdb"]
+
+
+def test_post_nonraid_roles_persists_data_disks(client):
+    _set_parity_mode(client, "single")
+    c, state_file = client
+    c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc", "/dev/sdd"],
+    })
+    state = json.loads(state_file.read_text())
+    assert state["nonraid_data_disks"] == ["/dev/sdc", "/dev/sdd"]
+
+
+def test_post_nonraid_roles_dual_parity_ok(client):
+    _set_parity_mode(client, "dual")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb", "/dev/sdc"],
+        "data_disks": ["/dev/sdd"],
+    })
+    assert resp.status_code == 200
+
+
+def test_post_nonraid_roles_wrong_parity_count_single(client):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb", "/dev/sdc"],
+        "data_disks": ["/dev/sdd"],
+    })
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_roles_zero_parity_single(client):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": [],
+        "data_disks": ["/dev/sdc"],
+    })
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_roles_wrong_parity_count_dual(client):
+    _set_parity_mode(client, "dual")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc"],
+    })
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_roles_no_data_disks(client):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": [],
+    })
+    assert resp.status_code == 400
+
+
+def test_post_nonraid_roles_overlap_rejected(client):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdb"],
+    })
+    assert resp.status_code == 400

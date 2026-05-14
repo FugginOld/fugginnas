@@ -2,6 +2,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from system.nonraid_utils import nmdctl_status
 from system.state import read_state
 
 _SYNC_LOG = "/var/log/snapraid-sync.log"
@@ -64,6 +65,52 @@ def _parse_snapraid_log(log_path: str) -> dict:
     return {"last_run": last_run, "result": result, "errors": errors or 0}
 
 
+def _service_active(name: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", name],
+            capture_output=True, text=True, check=False,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _smb_reachable(share_name: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["smbclient", "-N", "-c", "exit", f"//127.0.0.1/{share_name}"],
+            capture_output=True, text=True, check=False, timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _nfs_reachable(path: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["showmount", "-e", "127.0.0.1"],
+            capture_output=True, text=True, check=False, timeout=5,
+        )
+        return result.returncode == 0 and path in result.stdout
+    except Exception:
+        return False
+
+
+def _live_share(share: dict) -> dict:
+    proto = share.get("protocol", "")
+    out = {
+        **share,
+        "path_exists": Path(share["path"]).exists(),
+    }
+    if proto in ("smb", "both"):
+        out["smb_reachable"] = _smb_reachable(share["name"])
+    if proto in ("nfs", "both"):
+        out["nfs_reachable"] = _nfs_reachable(share["path"])
+    return out
+
+
 def _snapraid_dirty_count() -> int | None:
     """Run snapraid diff --count-only and return number of changed files."""
     try:
@@ -93,6 +140,10 @@ def get_status() -> dict:
     pool_usage = _df_usage(pool_mount)
     cache_usage = _df_usage(cache_mount)
 
+    shares = state.get("shares", [])
+    has_smb = any(s.get("protocol") in ("smb", "both") for s in shares)
+    has_nfs = any(s.get("protocol") in ("nfs", "both") for s in shares)
+
     status: dict = {
         "backend": backend,
         "pool": {
@@ -102,7 +153,11 @@ def get_status() -> dict:
             "available_bytes": pool_usage["available_bytes"],
         },
         "cache_fill_pct": cache_usage["used_pct"],
-        "shares": state.get("shares", []),
+        "services": {
+            "smbd": _service_active("smbd") if has_smb else None,
+            "nfs_server": _service_active("nfs-server") if has_nfs else None,
+        },
+        "shares": [_live_share(s) for s in shares],
     }
 
     if backend == "snapraid":
@@ -110,6 +165,14 @@ def get_status() -> dict:
             "sync": _parse_snapraid_log(_SYNC_LOG),
             "scrub": _parse_snapraid_log(_SCRUB_LOG),
             "dirty_files": _snapraid_dirty_count(),
+        }
+
+    if backend == "nonraid":
+        nmd = nmdctl_status()
+        status["nonraid"] = {
+            "state": nmd.get("state"),
+            "parity_disks": state.get("nonraid_parity_disks", []),
+            "data_disks": state.get("nonraid_data_disks", []),
         }
 
     return status

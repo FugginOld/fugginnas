@@ -10,7 +10,7 @@ from system.nonraid_utils import (
     nmdctl_unmount,
     parse_nmdstat,
 )
-from system.state import write_state
+from system.state import read_state, write_state
 
 nonraid_bp = Blueprint("nonraid", __name__)
 
@@ -98,11 +98,15 @@ def set_nonraid_config():
     luks = data.get("luks", False)
     turbo_write = data.get("turbo_write", False)
     check_schedule = data.get("check_schedule", "quarterly")
+    check_correct = data.get("check_correct", False)
+    check_speed_limit = data.get("check_speed_limit", 200)
 
     if parity_mode not in _VALID_PARITY:
         return jsonify({"error": "invalid parity_mode"}), 400
     if filesystem not in _VALID_FS:
         return jsonify({"error": "invalid filesystem", "valid": sorted(_VALID_FS)}), 400
+    if not isinstance(check_speed_limit, int) or not (10 <= check_speed_limit <= 1000):
+        return jsonify({"error": "check_speed_limit must be 10–1000 MB/s"}), 400
 
     write_state({
         "nonraid_parity_mode": parity_mode,
@@ -110,6 +114,32 @@ def set_nonraid_config():
         "nonraid_luks": luks,
         "nonraid_turbo_write": turbo_write,
         "nonraid_check_schedule": check_schedule,
+        "nonraid_check_correct": check_correct,
+        "nonraid_check_speed_limit": check_speed_limit,
+    })
+    return jsonify({"ok": True}), 200
+
+
+@nonraid_bp.post("/api/nonraid/roles")
+def post_nonraid_roles():
+    data = request.get_json(silent=True) or {}
+    parity_disks = data.get("parity_disks", [])
+    data_disks = data.get("data_disks", [])
+
+    state = read_state()
+    parity_mode = state.get("nonraid_parity_mode", "single")
+    expected = 2 if parity_mode == "dual" else 1
+
+    if len(parity_disks) != expected:
+        return jsonify({"error": f"parity_mode '{parity_mode}' requires exactly {expected} parity disk(s)"}), 400
+    if not data_disks:
+        return jsonify({"error": "at least one data disk is required"}), 400
+    if set(parity_disks) & set(data_disks):
+        return jsonify({"error": "a disk cannot be assigned both parity and data roles"}), 400
+
+    write_state({
+        "nonraid_parity_disks": parity_disks,
+        "nonraid_data_disks": data_disks,
     })
     return jsonify({"ok": True}), 200
 
@@ -141,9 +171,14 @@ def post_nonraid_unmount():
 @nonraid_bp.post("/api/nonraid/check")
 def post_nonraid_check():
     data = request.get_json(silent=True) or {}
-    mode = data.get("mode", "NOCORRECT").upper()
-    if mode not in _VALID_CHECK_MODES:
-        return jsonify({"error": "mode must be CORRECT or NOCORRECT"}), 400
+    # honour explicit override; fall back to stored preference
+    if "mode" in data:
+        mode = data["mode"].upper()
+        if mode not in _VALID_CHECK_MODES:
+            return jsonify({"error": "mode must be CORRECT or NOCORRECT"}), 400
+    else:
+        state = read_state()
+        mode = "CORRECT" if state.get("nonraid_check_correct") else "NOCORRECT"
 
     def _stream():
         proc = nmdctl_check(mode)
