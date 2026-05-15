@@ -167,12 +167,17 @@ def post_nonraid_check():
         state = read_state()
         mode = "CORRECT" if state.get("nonraid_check_correct") else "NOCORRECT"
 
+    safe_mode = {
+        "CORRECT": "CORRECT",
+        "NOCORRECT": "NOCORRECT",
+    }[mode]
+
     def _stream():
         for event in sse_subprocess(
-            ["nmdctl", "check", mode],
+            ["nmdctl", "check", safe_mode],
             "Check complete (exit {returncode})",
             "Check complete (exit {returncode})",
-            popen_factory=lambda _cmd: nmdctl_check(mode),
+            popen_factory=lambda _cmd: nmdctl_check(safe_mode),
         ):
             yield event
 
