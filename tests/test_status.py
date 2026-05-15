@@ -98,6 +98,26 @@ def test_get_status_has_backend_field(client):
     assert data["backend"] == "snapraid"
 
 
+def test_get_status_has_theme_field(client):
+    with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = client.get("/api/status")
+    data = resp.get_json()
+    assert data["theme"] == "default"
+
+
+def test_get_status_backend_non_string_returns_none(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps({"backend": 123, "pool_mount": "/mnt/pool", "cache_mount": "/mnt/cache"}))
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
+    from app import create_app
+    app = create_app()
+    app.config["TESTING"] = True
+
+    with app.test_client() as c, patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = c.get("/api/status")
+    assert resp.get_json()["backend"] is None
+
+
 # ── NonRAID status panel ──────────────────────────────────────────────────────
 
 def test_nonraid_status_has_nonraid_key(nonraid_client):

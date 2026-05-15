@@ -1,6 +1,7 @@
 import json
+import pytest
 
-from system.state import get_backend, get_theme, write_state
+from system.state import get_backend, get_theme, write_known_state, write_state
 
 
 def test_get_theme_default_when_missing():
@@ -35,3 +36,19 @@ def test_write_state_merges_updates(tmp_path, monkeypatch):
     state = json.loads(state_file.read_text())
     assert state["theme"] == "default"
     assert state["backend"] == "mergerfs"
+
+
+def test_write_known_state_accepts_known_keys(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
+    write_known_state({"theme": "nord", "backend": "snapraid"})
+    state = json.loads(state_file.read_text())
+    assert state["theme"] == "nord"
+    assert state["backend"] == "snapraid"
+
+
+def test_write_known_state_rejects_unknown_keys(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
+    with pytest.raises(ValueError):
+        write_known_state({"bogus": True})

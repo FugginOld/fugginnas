@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from system.nonraid_utils import nmdctl_status
-from system.state import read_state
+from system.state import get_backend, get_theme, read_state
 
 _SYNC_LOG = "/var/log/snapraid-sync.log"
 _SCRUB_LOG = "/var/log/snapraid-scrub.log"
@@ -135,7 +135,8 @@ def get_status() -> dict:
     state = read_state()
     pool_mount = state.get("pool_mount", "/mnt/pool")
     cache_mount = state.get("cache_mount", "/mnt/cache")
-    backend = state.get("backend")
+    backend = get_backend(state)
+    theme = get_theme(state)
 
     pool_usage = _df_usage(pool_mount)
     cache_usage = _df_usage(cache_mount)
@@ -146,6 +147,7 @@ def get_status() -> dict:
 
     status: dict = {
         "backend": backend,
+        "theme": theme,
         "pool": {
             "mount": pool_mount,
             "mounted": _is_mounted(pool_mount),

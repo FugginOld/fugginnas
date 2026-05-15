@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from system.state import get_theme as read_theme, read_state, write_state
+from system.state import get_theme as read_theme, read_state, write_known_state
 
 theme_bp = Blueprint("theme", __name__)
 
@@ -26,5 +26,5 @@ def post_theme():
         return jsonify({"error": "theme name required"}), 400
     if name not in VALID_THEMES:
         return jsonify({"error": "unknown theme", "valid": sorted(VALID_THEMES)}), 400
-    write_state({"theme": name})
+    write_known_state({"theme": name})
     return jsonify({"ok": True}), 200
