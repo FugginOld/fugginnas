@@ -1,5 +1,3 @@
-import subprocess
-
 from flask import Blueprint, Response, stream_with_context
 
 from system.apply_utils import apply_all, backup_fstab, build_file_manifest
@@ -30,12 +28,12 @@ def do_apply():
 
         if state.get("backend") == "snapraid":
             for timer in ("snapraid-sync.timer", "snapraid-scrub.timer"):
-                result = subprocess.run(
+                for event in sse_subprocess(
                     ["systemctl", "enable", "--now", timer],
-                    capture_output=True, text=True,
-                )
-                status = "OK" if result.returncode == 0 else f"WARN: {result.stderr.strip()}"
-                yield f"data: systemctl enable {timer}: {status}\n\n"
+                    f"systemctl enable {timer}: OK",
+                    f"systemctl enable {timer}: WARN: {{stderr}}",
+                ):
+                    yield event
 
         for event in sse_subprocess(
             ["systemctl", "enable", "--now", "FugginNAS-mover.timer"],

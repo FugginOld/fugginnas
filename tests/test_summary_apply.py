@@ -99,3 +99,47 @@ def test_post_apply_streams_file_paths(client):
         body = resp.data.decode()
     assert "/etc/snapraid.conf" in body
     assert "Apply complete" in body
+
+
+def test_post_apply_uses_sse_helper_for_snapraid_timers(client):
+    with patch("routes.apply.apply_all", return_value=[]), \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=[]) as mock_sse:
+        resp = client.post("/api/apply")
+        _ = resp.data
+
+    calls = [c.args for c in mock_sse.call_args_list]
+    assert (
+        ["systemctl", "enable", "--now", "snapraid-sync.timer"],
+        "systemctl enable snapraid-sync.timer: OK",
+        "systemctl enable snapraid-sync.timer: WARN: {stderr}",
+    ) in calls
+    assert (
+        ["systemctl", "enable", "--now", "snapraid-scrub.timer"],
+        "systemctl enable snapraid-scrub.timer: OK",
+        "systemctl enable snapraid-scrub.timer: WARN: {stderr}",
+    ) in calls
+
+
+def test_post_apply_preserves_snapraid_timer_error_sentinel_text(client):
+    events = {
+        "snapraid-sync.timer": ["data: systemctl enable snapraid-sync.timer: WARN: sync failed\n\n"],
+        "snapraid-scrub.timer": ["data: systemctl enable snapraid-scrub.timer: WARN: scrub failed\n\n"],
+        "FugginNAS-mover.timer": ["data: systemctl enable FugginNAS-mover.timer: OK\n\n"],
+    }
+
+    def _fake_sse(cmd, done_msg, error_msg):
+        _ = done_msg
+        _ = error_msg
+        return events[cmd[-1]]
+
+    with patch("routes.apply.apply_all", return_value=[]), \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", side_effect=_fake_sse):
+        resp = client.post("/api/apply")
+        body = resp.data.decode()
+
+    assert "data: systemctl enable snapraid-sync.timer: WARN: sync failed\n\n" in body
+    assert "data: systemctl enable snapraid-scrub.timer: WARN: scrub failed\n\n" in body
