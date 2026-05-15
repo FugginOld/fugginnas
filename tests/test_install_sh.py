@@ -32,6 +32,11 @@ def test_install_sh_installs_mdadm():
     assert "mdadm" in content
 
 
+def test_install_sh_installs_linux_headers_meta_package():
+    content = INSTALL_SH.read_text()
+    assert "linux-headers-amd64" in content
+
+
 def test_install_sh_installs_samba():
     content = INSTALL_SH.read_text()
     assert "samba" in content
@@ -45,6 +50,11 @@ def test_install_sh_installs_nfs():
 def test_install_sh_installs_pip_requirements():
     content = INSTALL_SH.read_text()
     assert "requirements.txt" in content
+
+
+def test_install_sh_allows_debian_pep668_pip_install():
+    content = INSTALL_SH.read_text()
+    assert "--break-system-packages" in content
 
 
 def test_install_sh_writes_systemd_unit():

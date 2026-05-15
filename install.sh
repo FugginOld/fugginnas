@@ -5,10 +5,10 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> Installing system packages"
 apt-get update -qq
-apt-get install -y python3-pip mergerfs snapraid mdadm samba nfs-kernel-server
+apt-get install -y python3-pip mergerfs snapraid mdadm samba nfs-kernel-server linux-headers-amd64
 
 echo "==> Installing Python dependencies"
-pip3 install -r "$REPO_DIR/requirements.txt"
+pip3 install --break-system-packages -r "$REPO_DIR/requirements.txt"
 
 echo "==> Writing systemd unit"
 cat > /etc/systemd/system/fugginnas.service <<EOF
