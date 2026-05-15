@@ -1,6 +1,6 @@
 // FugginNAS — SPA router + wizard screens
 
-const _routes = {};
+const _routes = new Map();
 const _state = {};
 
 const THEMES = [
@@ -43,19 +43,18 @@ function mountThemePicker() {
   });
 }
 
-function register(hash, fn) { _routes[hash] = fn; }
+function register(hash, fn) { _routes.set(hash, fn); }
 function navigate(hash) { location.hash = hash; }
 function app() { return document.getElementById('app'); }
 
 function render() {
   const hash = location.hash.replace(/^#/, '') || 'welcome';
-  const hasRoute = Object.prototype.hasOwnProperty.call(_routes, hash);
-  const fn = hasRoute ? _routes[hash] : undefined;
+  const fn = _routes.get(hash);
   if (typeof fn === 'function') {
     fn();
     return;
   }
-  const welcome = _routes['welcome'];
+  const welcome = _routes.get('welcome');
   if (typeof welcome === 'function') welcome();
 }
 
