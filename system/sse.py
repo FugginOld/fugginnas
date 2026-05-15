@@ -1,6 +1,19 @@
 import subprocess
 
 
+_DISALLOWED_SHELL_CHARS = set(";|&`$<>")
+
+
+def _validate_command(command):
+    if not isinstance(command, (list, tuple)) or not command:
+        raise ValueError("command must be a non-empty list/tuple of strings")
+    for part in command:
+        if not isinstance(part, str) or not part.strip():
+            raise ValueError("each command argument must be a non-empty string")
+        if any(ch in part for ch in _DISALLOWED_SHELL_CHARS):
+            raise ValueError("command contains disallowed shell metacharacters")
+
+
 def sse_subprocess(cmd, done_msg, error_msg, popen_factory=None):
     """Stream a subprocess as SSE events.
 
@@ -12,12 +25,15 @@ def sse_subprocess(cmd, done_msg, error_msg, popen_factory=None):
     - ``stderr`` placeholder is sourced from the last non-empty forwarded line.
     """
     spawn = popen_factory or (
-        lambda command: subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
+        lambda command: (
+            _validate_command(command),
+            subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ),
+        )[1]
     )
     proc = spawn(cmd)
 
