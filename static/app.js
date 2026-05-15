@@ -49,8 +49,14 @@ function app() { return document.getElementById('app'); }
 
 function render() {
   const hash = location.hash.replace(/^#/, '') || 'welcome';
-  const fn = _routes[hash];
-  if (fn) fn(); else _routes['welcome']();
+  const hasRoute = Object.prototype.hasOwnProperty.call(_routes, hash);
+  const fn = hasRoute ? _routes[hash] : undefined;
+  if (typeof fn === 'function') {
+    fn();
+    return;
+  }
+  const welcome = _routes['welcome'];
+  if (typeof welcome === 'function') welcome();
 }
 
 window.addEventListener('hashchange', render);
