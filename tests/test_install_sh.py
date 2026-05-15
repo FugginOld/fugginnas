@@ -34,7 +34,12 @@ def test_install_sh_installs_mdadm():
 
 def test_install_sh_installs_linux_headers_meta_package():
     content = INSTALL_SH.read_text()
-    assert "linux-headers-amd64" in content
+    apt_line = next(
+        (line for line in content.splitlines() if "apt-get install" in line),
+        None,
+    )
+    assert apt_line is not None, "No apt-get install line found"
+    assert "linux-headers-$(dpkg --print-architecture)" in apt_line
 
 
 def test_install_sh_installs_samba():
@@ -52,9 +57,16 @@ def test_install_sh_installs_pip_requirements():
     assert "requirements.txt" in content
 
 
-def test_install_sh_allows_debian_pep668_pip_install():
+def test_install_sh_installs_python_deps_in_venv():
     content = INSTALL_SH.read_text()
-    assert "--break-system-packages" in content
+    assert "python3 -m venv /opt/fugginnas/venv" in content
+    pip_line = next(
+        (line for line in content.splitlines() if "pip install" in line),
+        None,
+    )
+    assert pip_line is not None, "No pip install line found"
+    assert "/opt/fugginnas/venv/bin/pip" in pip_line
+    assert "requirements.txt" in pip_line
 
 
 def test_install_sh_writes_systemd_unit():

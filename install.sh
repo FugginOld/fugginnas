@@ -5,10 +5,11 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> Installing system packages"
 apt-get update -qq
-apt-get install -y python3-pip mergerfs snapraid mdadm samba nfs-kernel-server linux-headers-amd64
+apt-get install -y python3-pip python3-venv mergerfs snapraid mdadm samba nfs-kernel-server linux-headers-$(dpkg --print-architecture)
 
 echo "==> Installing Python dependencies"
-pip3 install --break-system-packages -r "$REPO_DIR/requirements.txt"
+python3 -m venv /opt/fugginnas/venv
+/opt/fugginnas/venv/bin/pip install -r "$REPO_DIR/requirements.txt"
 
 echo "==> Writing systemd unit"
 cat > /etc/systemd/system/fugginnas.service <<EOF
@@ -19,7 +20,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$REPO_DIR
-ExecStart=/usr/bin/python3 $REPO_DIR/app.py
+ExecStart=/opt/fugginnas/venv/bin/python3 $REPO_DIR/app.py
 Restart=on-failure
 
 [Install]
