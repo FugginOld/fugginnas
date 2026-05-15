@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from system.state import get_backend, get_theme, write_known_state, write_state
+from system.state import KNOWN_STATE_KEYS, get_backend, get_theme, write_known_state, write_state
 
 
 def test_get_theme_default_when_missing():
@@ -52,3 +52,15 @@ def test_write_known_state_rejects_unknown_keys(tmp_path, monkeypatch):
     monkeypatch.setenv("FUGGINNAS_STATE", str(state_file))
     with pytest.raises(ValueError):
         write_known_state({"bogus": True})
+
+
+def test_known_state_keys_cover_migrated_route_writer_keys():
+    migrated_route_keys = {
+        "theme",
+        "backend",
+        "mover_schedule_time",
+        "mover_age_hours",
+        "mover_min_free_pct",
+        "shares",
+    }
+    assert migrated_route_keys.issubset(KNOWN_STATE_KEYS)
