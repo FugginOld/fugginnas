@@ -2,6 +2,7 @@ import subprocess
 
 
 _DISALLOWED_SHELL_CHARS = set(";|&`$<>")
+_ALLOWED_NMDCTL_CHECK_MODES = {"CORRECT", "NOCORRECT"}
 
 
 def _validate_command(command):
@@ -12,6 +13,17 @@ def _validate_command(command):
             raise ValueError("each command argument must be a non-empty string")
         if any(ch in part for ch in _DISALLOWED_SHELL_CHARS):
             raise ValueError("command contains disallowed shell metacharacters")
+
+
+def _validate_allowed_command(command):
+    if (
+        len(command) == 3
+        and command[0] == "nmdctl"
+        and command[1] == "check"
+        and command[2] in _ALLOWED_NMDCTL_CHECK_MODES
+    ):
+        return
+    raise ValueError("command is not in the allowlist")
 
 
 def sse_subprocess(cmd, done_msg, error_msg, popen_factory=None):
@@ -27,6 +39,7 @@ def sse_subprocess(cmd, done_msg, error_msg, popen_factory=None):
     spawn = popen_factory or (
         lambda command: (
             _validate_command(command),
+            _validate_allowed_command(command),
             subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
