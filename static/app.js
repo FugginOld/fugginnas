@@ -80,13 +80,14 @@ function showModal(message, onConfirm) {
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <p>${message}</p>
+      <p id="modal-message"></p>
       <div class="actions">
         <button id="modal-cancel" class="secondary">Cancel</button>
         <button id="modal-confirm">Confirm</button>
       </div>
     </div>
   `;
+  overlay.querySelector('#modal-message').textContent = message;
   document.body.appendChild(overlay);
   overlay.querySelector('#modal-cancel').addEventListener('click', () => overlay.remove());
   overlay.querySelector('#modal-confirm').addEventListener('click', () => {
