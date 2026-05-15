@@ -1,9 +1,11 @@
+import re
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 TARGETS = [
-    Path("routes/apply.py"),
-    Path("routes/nonraid.py"),
+    _REPO_ROOT / "routes/apply.py",
+    _REPO_ROOT / "routes/nonraid.py",
 ]
 
 
@@ -12,7 +14,8 @@ def _has_inline_sse_subprocess_loop(source: str) -> bool:
     Guard rule (narrow):
     - A local `_stream` function contains BOTH:
       1) subprocess loop markers (`subprocess.Popen` or `for line in proc.stdout`)
-      2) direct SSE line yield marker (`yield f"data:`).
+      2) direct SSE line yield marker (any of: `yield f"data:`, `yield f'data:`,
+         `yield "data:`, `yield 'data:`).
     This flags old inline SSE subprocess loop style while allowing delegation
     to `sse_subprocess(...)`.
     """
@@ -21,7 +24,7 @@ def _has_inline_sse_subprocess_loop(source: str) -> bool:
         # Limit to stream function body region heuristically by cutting at next top-level def/decorator.
         body = chunk.split("\n\ndef ", 1)[0].split("\n\n@", 1)[0]
         has_subprocess_loop = ("subprocess.Popen" in body) or ("for line in proc.stdout" in body)
-        has_direct_sse_yield = 'yield f"data:' in body
+        has_direct_sse_yield = bool(re.search(r"""yield\s+f?['"]data:""", body))
         if has_subprocess_loop and has_direct_sse_yield:
             return True
     return False
