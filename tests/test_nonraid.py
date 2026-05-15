@@ -1,5 +1,6 @@
 import json
 import pytest
+from unittest.mock import patch
 
 
 @pytest.fixture
@@ -196,6 +197,69 @@ def test_post_nonraid_check_invalid_mode(client):
     c, _ = client
     resp = c.post("/api/nonraid/check", json={"mode": "BADMODE"})
     assert resp.status_code == 400
+
+
+def test_post_nonraid_install_uses_sse_helper_and_preserves_order(client):
+    c, _ = client
+
+    def _fake_sse(cmd, done_msg, error_msg):
+        _ = done_msg
+        _ = error_msg
+        yield f"data: output for {cmd[0]}\n\n"
+
+    with patch("routes.nonraid.sse_subprocess", side_effect=_fake_sse) as mock_sse:
+        resp = c.post("/api/nonraid/install")
+        body = resp.data.decode()
+
+    assert body.startswith("data: Running: apt-get install -y gpg\n\n")
+    assert "data: output for apt-get\n\n" in body
+    assert body.endswith("data: NonRAID install complete\n\n")
+    assert mock_sse.call_count == 5
+
+
+def test_post_nonraid_install_preserves_error_sentinel_and_stops(client):
+    c, _ = client
+
+    def _fake_sse(cmd, done_msg, error_msg):
+        _ = done_msg
+        _ = error_msg
+        if cmd[0] == "apt-get" and "update" in cmd:
+            yield "data: ERROR (exit 4)\n\n"
+            return
+        yield "data: ok\n\n"
+
+    with patch("routes.nonraid.sse_subprocess", side_effect=_fake_sse):
+        resp = c.post("/api/nonraid/install")
+        body = resp.data.decode()
+
+    assert "data: ERROR (exit 4)\n\n" in body
+    assert "data: NonRAID install complete\n\n" not in body
+
+
+def test_post_nonraid_create_success_and_error_sentinels(client):
+    c, _ = client
+
+    with patch("routes.nonraid.sse_subprocess", return_value=["data: Array created successfully\n\n"]):
+        ok_resp = c.post("/api/nonraid/create")
+        ok_body = ok_resp.data.decode()
+    with patch("routes.nonraid.sse_subprocess", return_value=["data: ERROR (exit 2)\n\n"]):
+        err_resp = c.post("/api/nonraid/create")
+        err_body = err_resp.data.decode()
+
+    assert ok_body == "data: Array created successfully\n\n"
+    assert err_body == "data: ERROR (exit 2)\n\n"
+
+
+def test_post_nonraid_check_stream_order_and_completion(client):
+    c, _ = client
+    with patch(
+        "routes.nonraid.sse_subprocess",
+        return_value=["data: line one\n\n", "data: Check complete (exit 0)\n\n"],
+    ):
+        resp = c.post("/api/nonraid/check", json={"mode": "CORRECT"})
+        body = resp.data.decode()
+
+    assert body == "data: line one\n\ndata: Check complete (exit 0)\n\n"
 
 
 # ── /api/nonraid/check/status ─────────────────────────────────────────────────

@@ -1,13 +1,16 @@
 import subprocess
 
 
-def sse_subprocess(cmd, done_msg, error_msg):
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+def sse_subprocess(cmd, done_msg, error_msg, popen_factory=None):
+    spawn = popen_factory or (
+        lambda command: subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
     )
+    proc = spawn(cmd)
 
     lines = []
     for line in proc.stdout:
@@ -16,13 +19,15 @@ def sse_subprocess(cmd, done_msg, error_msg):
         yield f"data: {clean}\n\n"
 
     proc.wait()
-    if proc.returncode == 0:
-        yield f"data: {done_msg}\n\n"
-        return
-
     detail = ""
     for line in reversed(lines):
         if line.strip():
             detail = line.strip()
             break
+
+    if proc.returncode == 0:
+        if done_msg is not None:
+            yield f"data: {done_msg.format(returncode=proc.returncode, stderr=detail)}\n\n"
+        return
+
     yield f"data: {error_msg.format(returncode=proc.returncode, stderr=detail)}\n\n"

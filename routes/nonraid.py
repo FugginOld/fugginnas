@@ -1,5 +1,6 @@
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 
+from system.sse import sse_subprocess
 from system.nonraid_utils import (
     is_nonraid_installed,
     nmdctl_check,
@@ -32,8 +33,6 @@ def get_nonraid_install():
 
 @nonraid_bp.post("/api/nonraid/install")
 def post_nonraid_install():
-    import subprocess
-
     def _stream():
         cmds = [
             ["apt-get", "install", "-y", "gpg"],
@@ -55,15 +54,10 @@ def post_nonraid_install():
         ]
         for cmd in cmds:
             yield f"data: Running: {' '.join(cmd)}\n\n"
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-            )
-            for line in proc.stdout:
-                yield f"data: {line.rstrip()}\n\n"
-            proc.wait()
-            if proc.returncode != 0:
-                yield f"data: ERROR (exit {proc.returncode})\n\n"
-                return
+            for event in sse_subprocess(cmd, None, "ERROR (exit {returncode})"):
+                yield event
+                if event.startswith("data: ERROR (exit "):
+                    return
         yield "data: NonRAID install complete\n\n"
 
     return Response(stream_with_context(_stream()), mimetype="text/event-stream")
@@ -71,20 +65,13 @@ def post_nonraid_install():
 
 @nonraid_bp.post("/api/nonraid/create")
 def post_nonraid_create():
-    import subprocess
-
     def _stream():
-        proc = subprocess.Popen(
+        for event in sse_subprocess(
             ["nmdctl", "create"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-        for line in proc.stdout:
-            yield f"data: {line.rstrip()}\n\n"
-        proc.wait()
-        if proc.returncode == 0:
-            yield "data: Array created successfully\n\n"
-        else:
-            yield f"data: ERROR (exit {proc.returncode})\n\n"
+            "Array created successfully",
+            "ERROR (exit {returncode})",
+        ):
+            yield event
 
     return Response(stream_with_context(_stream()), mimetype="text/event-stream")
 
@@ -181,11 +168,13 @@ def post_nonraid_check():
         mode = "CORRECT" if state.get("nonraid_check_correct") else "NOCORRECT"
 
     def _stream():
-        proc = nmdctl_check(mode)
-        for line in proc.stdout:
-            yield f"data: {line.rstrip()}\n\n"
-        proc.wait()
-        yield f"data: Check complete (exit {proc.returncode})\n\n"
+        for event in sse_subprocess(
+            ["nmdctl", "check", mode],
+            "Check complete (exit {returncode})",
+            "Check complete (exit {returncode})",
+            popen_factory=lambda _cmd: nmdctl_check(mode),
+        ):
+            yield event
 
     return Response(stream_with_context(_stream()), mimetype="text/event-stream")
 
