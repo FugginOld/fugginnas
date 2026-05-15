@@ -1,6 +1,6 @@
 name: SSE Guardrails
 
-on:
+"on":
   pull_request:
     paths:
       - "system/sse.py"

@@ -14,7 +14,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | `install.sh` — apt packages + pip + systemd unit write | ✅ Written | `install.sh` |
 | `install.sh` — Linux runtime tested on real host | ❌ Untested | `install.sh` |
 | Flask app factory `create_app()` | ✅ Done | `app.py` |
@@ -33,7 +33,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1–2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Backend selector screen (NonRAID / SnapRAID / MergerFS-only) | ✅ Done | `static/app.js` |
 | Comparison table in UI | ✅ Done | `static/app.js` |
 | `POST /api/backend` — saves backend to state | ✅ Done | `routes/backend.py` |
@@ -48,7 +48,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1–2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Pool config screen (pool mount, cache mount, data mounts, write policy) | ✅ Done | `static/app.js` |
 | `POST /api/pool` — saves pool config to state | ✅ Done | `routes/pool.py` |
 | MergerFS mount string builder | ✅ Done | `system/mergerfs.py` (`build_mount_string`) |
@@ -64,7 +64,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1–2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | SnapRAID config screen (parity drive, sync time, scrub schedule) | ✅ Done | `static/app.js` |
 | `sync_time` input with default "02:00" | ✅ Done | `static/app.js` |
 | `POST /api/snapraid` — saves config to state | ✅ Done | `routes/snapraid.py` |
@@ -82,7 +82,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | NonRAID config screen (parity mode, filesystem, LUKS, turbo write, check schedule) | ✅ Done | `static/app.js` |
 | Install status badge in UI | ✅ Done | `static/app.js` |
 | nmdctl research — confirmed `create` is interactive-only | ✅ Done | `CONTEXT.md` |
@@ -103,7 +103,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 2 (partial) + 3 + 4
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | `POST /api/nonraid/create` — SSE stream `nmdctl create` | ✅ Done | `routes/nonraid.py` |
 | Install button streams create output in UI | ✅ Done | `static/app.js` |
 | Drive role assignment screen (`#nonraid-roles`) | ✅ Done | `static/app.js` |
@@ -122,7 +122,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1–2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Mover config screen (schedule time, age hours, min free pct) | ✅ Done | `static/app.js` |
 | `POST /api/mover` — saves mover config to state | ✅ Done | `routes/mover.py` |
 | Mover shell script generator | ✅ Done | `system/mover.py` (`generate_mover_script`) |
@@ -137,7 +137,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** Skipped (explicit decision)
 
 | Task | Status |
-|---|---|
+| --- | --- |
 | All Docker setup tasks | ❌ Skipped — deferred indefinitely |
 
 ---
@@ -147,7 +147,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** Skipped (explicit decision)
 
 | Task | Status |
-|---|---|
+| --- | --- |
 | All Docker dashboard tasks | ❌ Skipped — deferred indefinitely |
 
 ---
@@ -157,7 +157,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 1–2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Shares config screen (name, path, protocol, SMB guest, NFS hosts) | ✅ Done | `static/app.js` |
 | `POST /api/shares` — saves shares list to state | ✅ Done | `routes/shares.py` |
 | Samba `smb.conf` block generator | ✅ Done | `system/samba.py` (`generate_smb_block`) |
@@ -171,7 +171,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Summary screen — file manifest preview | ✅ Done | `static/app.js` |
 | `GET /api/summary` — returns `{files: [{path, content}]}` | ✅ Done | `routes/summary.py` |
 | `build_file_manifest()` — collects all files to write | ✅ Done | `system/apply_utils.py` |
@@ -190,7 +190,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 2
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Status screen layout | ✅ Done | `static/app.js` |
 | `GET /api/status` | ✅ Done | `routes/status.py` |
 | Pool panel: mount point, mounted/unmounted, used %, available bytes | ✅ Done | `system/status.py` |
@@ -210,7 +210,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 3
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/status` includes `nonraid` block when `backend=nonraid` | ✅ Done | `system/status.py` |
 | NonRAID panel: live `state` from `nmdctl_status()` | ✅ Done | `system/status.py` |
 | NonRAID panel: `parity_disks` and `data_disks` from stored state | ✅ Done | `system/status.py` |
@@ -223,7 +223,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 **Actual session:** 3
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | CSS variable schema (9 custom properties on `:root`) | ✅ Done | `static/style.css` |
 | 14 theme definitions (12 planned + tron-blue + tron-red) | ✅ Done | `static/style.css` |
 | Theme picker component — fixed bottom-right, persists across screens | ✅ Done | `static/app.js` |
@@ -261,7 +261,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 ## Session 4 — E2E test + install.sh live validation
 
 | Task | Status | File(s) |
-|---|---|---|
+| --- | --- | --- |
 | Browser E2E test — full NonRAID create flow | ✅ Done | `tests/test_e2e_nonraid_create.py` |
 | `pytest-playwright` added to requirements | ✅ Done | `requirements.txt` |
 | `runtime_validate_install_in_container.sh` — real apt-get + pip + Flask import check | ✅ Done | `tests/runtime_validate_install_in_container.sh` |
