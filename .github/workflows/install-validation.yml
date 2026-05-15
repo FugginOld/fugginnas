@@ -37,4 +37,6 @@ jobs:
         run: python -m pytest -q tests/test_install_sh.py
 
       - name: Run install.sh runtime validation in Debian container
+        # Runs real apt-get + pip inside Debian 12 — takes ~2–3 min on first run
+        timeout-minutes: 10
         run: docker run --rm -v "$PWD:/repo" -w /repo debian:12 bash ./tests/runtime_validate_install_in_container.sh

@@ -100,7 +100,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 
 ## Planned Session 6 — NonRAID array create flow (sgdisk guidance, mkfs per slot, nmdctl create/start/mount)
 
-**Actual session:** 2 (partial) + 3
+**Actual session:** 2 (partial) + 3 + 4
 
 | Task | Status | File(s) |
 |---|---|---|
@@ -112,10 +112,8 @@ Each planned session lists its objective, the tasks completed, and current statu
 | mkfs per-slot commands shown before `nmdctl create` | ✅ Done | `static/app.js` |
 | `nmdctl create` command shown with interactive-mode note | ✅ Done | `static/app.js` |
 | Confirmation checkbox gates Proceed button | ✅ Done | `static/app.js` |
-| Browser E2E test of full NonRAID create flow | ❌ Not tested | — |
+| Browser E2E test of full NonRAID create flow | ✅ Done (local only) | `tests/test_e2e_nonraid_create.py` |
 | Tests: role assignment route | ✅ 9 tests | `tests/test_nonraid.py` |
-
-**Remaining gap:** Browser E2E test only. All wizard steps and API routes are implemented.
 
 ---
 
@@ -247,7 +245,7 @@ Each planned session lists its objective, the tasks completed, and current statu
 | 3 | Pool config + mergerfs + fstab writer | ✅ Done |
 | 4 | SnapRAID config + snapraid.conf + timers | ✅ Done |
 | 5 | NonRAID wizard + PPA install + nmdctl wrappers | ✅ Done |
-| 6 | NonRAID create flow (sgdisk + mkfs + nmdctl create) | ⚠️ Partial — E2E browser test only remaining |
+| 6 | NonRAID create flow (sgdisk + mkfs + nmdctl create) | ✅ Done (E2E test added, local only) |
 | 7 | Mover config + script + timer | ✅ Done |
 | 8 | Docker setup wizard | ❌ Skipped |
 | 9 | Docker dashboard | ❌ Skipped |
@@ -256,12 +254,21 @@ Each planned session lists its objective, the tasks completed, and current statu
 | 12 | Status dashboard | ✅ Done |
 | 13 | Theme system | ✅ Done (14 themes) |
 
-**Tests:** 214 passing, 0 failing (as of Session 3)
+**Tests:** 214 passing, 0 failing (as of Session 3) + 1 E2E test (requires Chromium)
+
+---
+
+## Session 4 — E2E test + install.sh live validation
+
+| Task | Status | File(s) |
+|---|---|---|
+| Browser E2E test — full NonRAID create flow | ✅ Done | `tests/test_e2e_nonraid_create.py` |
+| `pytest-playwright` added to requirements | ✅ Done | `requirements.txt` |
+| `runtime_validate_install_in_container.sh` — real apt-get + pip + Flask import check | ✅ Done | `tests/runtime_validate_install_in_container.sh` |
+| CI workflow timeout added for real install step | ✅ Done | `.github/workflows/install-validation.yml` |
 
 ---
 
 ## Remaining Open Items
 
-1. **Browser E2E test** — full NonRAID create flow (Session 6 last gap)
-2. **install.sh live test** — run on a real Debian host or in a VM/container
-3. **Docker** — if decision changes from "skipped"
+1. **Docker** — setup wizard + dashboard, if decision changes from "skipped"

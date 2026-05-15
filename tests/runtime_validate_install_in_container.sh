@@ -1,33 +1,12 @@
 #!/usr/bin/env bash
+# Real runtime validation of install.sh inside a Debian 12 container.
+# Runs apt-get for real, uses real pip, verifies Flask is importable.
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Stub only systemctl — systemd is not running inside Docker
 mkdir -p /tmp/fakebin
-
-# Stub apt-get to avoid slow/flaky package installation in CI
-cat > /tmp/fakebin/apt-get <<'EOF'
-#!/usr/bin/env bash
-echo "[stub-apt-get] $*" >> /tmp/apt-get.log
-exit 0
-EOF
-chmod +x /tmp/fakebin/apt-get
-
-# Stub python3 so venv creation is fast and offline; a fake pip is placed in the venv
-cat > /tmp/fakebin/python3 <<'EOF'
-#!/usr/bin/env bash
-if [ "$1" = "-m" ] && [ "$2" = "venv" ]; then
-    dir="$3"
-    mkdir -p "$dir/bin"
-    printf '#!/usr/bin/env bash\necho "[stub-pip] $*" >> /tmp/pip.log\nexit 0\n' > "$dir/bin/pip"
-    chmod +x "$dir/bin/pip"
-else
-    exec /usr/bin/python3 "$@"
-fi
-EOF
-chmod +x /tmp/fakebin/python3
-
-# Stub systemctl and record each invocation with its arguments for targeted assertions
 cat > /tmp/fakebin/systemctl <<'EOF'
 #!/usr/bin/env bash
 echo "[stub-systemctl] $*" >> /tmp/systemctl.log
@@ -35,14 +14,36 @@ exit 0
 EOF
 chmod +x /tmp/fakebin/systemctl
 
+# Run install.sh with real apt-get and real python3/pip
 PATH="/tmp/fakebin:$PATH" bash ./install.sh
 
-test -f /etc/systemd/system/fugginnas.service
-grep -q 'ExecStart=/opt/fugginnas/venv/bin/python3 /repo/app.py' /etc/systemd/system/fugginnas.service
-grep -q 'WorkingDirectory=/repo' /etc/systemd/system/fugginnas.service
+# ── Assert systemd unit was written correctly ─────────────────────────────────
+test -f /etc/systemd/system/fugginnas.service \
+  || { echo "FAIL: fugginnas.service not written"; exit 1; }
 
-grep -q 'daemon-reload' /tmp/systemctl.log
-grep -q 'enable fugginnas' /tmp/systemctl.log
-grep -q 'start fugginnas' /tmp/systemctl.log
+grep -q 'ExecStart=/opt/fugginnas/venv/bin/python3 /repo/app.py' \
+  /etc/systemd/system/fugginnas.service \
+  || { echo "FAIL: ExecStart line wrong"; exit 1; }
+
+grep -q 'WorkingDirectory=/repo' \
+  /etc/systemd/system/fugginnas.service \
+  || { echo "FAIL: WorkingDirectory missing"; exit 1; }
+
+# ── Assert systemctl was called with the right subcommands ────────────────────
+grep -q 'daemon-reload' /tmp/systemctl.log \
+  || { echo "FAIL: systemctl daemon-reload not called"; exit 1; }
+
+grep -q 'enable fugginnas' /tmp/systemctl.log \
+  || { echo "FAIL: systemctl enable not called"; exit 1; }
+
+grep -q 'start fugginnas' /tmp/systemctl.log \
+  || { echo "FAIL: systemctl start not called"; exit 1; }
+
+# ── Assert venv exists and Flask is importable ────────────────────────────────
+test -x /opt/fugginnas/venv/bin/python3 \
+  || { echo "FAIL: venv python3 not found"; exit 1; }
+
+/opt/fugginnas/venv/bin/python3 -c "import flask; print('Flask', flask.__version__)" \
+  || { echo "FAIL: flask not importable from venv"; exit 1; }
 
 echo "RUNTIME_OK"
