@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from system.state import read_state, write_state
+from system.state import get_theme as read_theme, read_state, write_state
 
 theme_bp = Blueprint("theme", __name__)
 
@@ -15,7 +15,7 @@ VALID_THEMES = {
 @theme_bp.get("/api/theme")
 def get_theme():
     state = read_state()
-    return jsonify({"theme": state.get("theme", "default")}), 200
+    return jsonify({"theme": read_theme(state)}), 200
 
 
 @theme_bp.post("/api/theme")

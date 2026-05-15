@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 
+DEFAULT_THEME = "default"
+
 
 def _state_path() -> Path:
     return Path(os.environ.get("FUGGINNAS_STATE", "state/state.json"))
@@ -24,3 +26,13 @@ def write_state(updates: dict) -> None:
     with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
     tmp.replace(path)
+
+
+def get_theme(state: dict) -> str:
+    value = state.get("theme")
+    return value if isinstance(value, str) and value else DEFAULT_THEME
+
+
+def get_backend(state: dict) -> str | None:
+    value = state.get("backend")
+    return value if isinstance(value, str) and value else None
