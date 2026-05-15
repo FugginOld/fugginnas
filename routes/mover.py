@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from system.state import write_state
+from system.state import write_known_state
 
 mover_bp = Blueprint("mover", __name__)
 
@@ -18,7 +18,7 @@ def set_mover():
     if not isinstance(min_free_pct, int) or not (0 <= min_free_pct <= 100):
         return jsonify({"error": "min_free_pct must be 0-100"}), 400
 
-    write_state({
+    write_known_state({
         "mover_schedule_time": schedule_time,
         "mover_age_hours": age_hours,
         "mover_min_free_pct": min_free_pct,

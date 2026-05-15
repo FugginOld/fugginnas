@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from system.state import read_state, write_state
+from system.state import read_state, write_known_state
 
 shares_bp = Blueprint("shares", __name__)
 
@@ -36,5 +36,5 @@ def add_share():
     state = read_state()
     shares = state.get("shares", [])
     shares.append(share)
-    write_state({"shares": shares})
+    write_known_state({"shares": shares})
     return jsonify({"ok": True}), 200
