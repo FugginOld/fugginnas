@@ -15,7 +15,7 @@ def _has_inline_sse_subprocess_loop(source: str) -> bool:
     - A local `_stream` function contains BOTH:
       1) subprocess loop markers (`subprocess.Popen` or `for line in proc.stdout`)
       2) direct SSE line yield marker (any of: `yield f"data:`, `yield f'data:`,
-         `yield "data:`, `yield 'data:`).
+         `yield "data:`, `yield 'data:'`).
     This flags old inline SSE subprocess loop style while allowing delegation
     to `sse_subprocess(...)`.
     """
