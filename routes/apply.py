@@ -3,6 +3,7 @@ import subprocess
 from flask import Blueprint, Response, stream_with_context
 
 from system.apply_utils import apply_all, backup_fstab, build_file_manifest
+from system.sse import sse_subprocess
 from system.state import read_state
 
 apply_bp = Blueprint("apply", __name__)
@@ -36,13 +37,12 @@ def do_apply():
                 status = "OK" if result.returncode == 0 else f"WARN: {result.stderr.strip()}"
                 yield f"data: systemctl enable {timer}: {status}\n\n"
 
-        for timer in ("FugginNAS-mover.timer",):
-            result = subprocess.run(
-                ["systemctl", "enable", "--now", timer],
-                capture_output=True, text=True,
-            )
-            status = "OK" if result.returncode == 0 else f"WARN: {result.stderr.strip()}"
-            yield f"data: systemctl enable {timer}: {status}\n\n"
+        for event in sse_subprocess(
+            ["systemctl", "enable", "--now", "FugginNAS-mover.timer"],
+            "systemctl enable FugginNAS-mover.timer: OK",
+            "systemctl enable FugginNAS-mover.timer: WARN: {stderr}",
+        ):
+            yield event
 
         yield "data: Apply complete\n\n"
 

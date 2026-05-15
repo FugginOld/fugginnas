@@ -65,6 +65,7 @@ def test_post_apply_returns_event_stream(client):
     with patch("routes.apply.apply_all") as mock_apply, \
          patch("routes.apply.backup_fstab"), \
          patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
         mock_sub.return_value = MagicMock(returncode=0, stderr="")
@@ -77,6 +78,7 @@ def test_post_apply_calls_apply_all(client):
     with patch("routes.apply.apply_all") as mock_apply, \
          patch("routes.apply.backup_fstab"), \
          patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
         mock_sub.return_value = MagicMock(returncode=0, stderr="")
@@ -89,6 +91,7 @@ def test_post_apply_streams_file_paths(client):
     with patch("routes.apply.apply_all") as mock_apply, \
          patch("routes.apply.backup_fstab"), \
          patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = ["/etc/snapraid.conf", "/usr/local/bin/FugginNAS-mover.sh"]
         mock_sub.return_value = MagicMock(returncode=0, stderr="")

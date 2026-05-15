@@ -272,3 +272,57 @@ Each planned session lists its objective, the tasks completed, and current statu
 ## Remaining Open Items
 
 1. **Docker** — setup wizard + dashboard, if decision changes from "skipped"
+
+---
+
+## Architectural Deepening Opportunities
+
+Identified via `/improve-codebase-architecture` review (Session 4). Ordered by friction severity.
+
+### 1. SSE streaming — duplicated shallow inline pattern
+
+**Files:** `routes/apply.py`, `routes/nonraid.py`
+
+Four `_stream()` / `stream_with_context` patterns across two files each do the same thing: run a subprocess, `yield f"data: {line}\n\n"`, check exit code, yield done/error sentinel. The pattern is copy-pasted inline with no shared seam.
+
+**Deepening:** Extract a `sse_subprocess(cmd, done_msg, error_msg)` generator. Each route calls it and wraps with `stream_with_context`. Streaming logic becomes testable by iterating the generator directly, without an HTTP client.
+
+---
+
+### 2. `state.py` — wide-open dict seam
+
+**Files:** `system/state.py`, `system/apply_utils.py`, all routes
+
+`read_state()` returns a bare `dict`. Key names and defaults are scattered across `build_file_manifest`, six routes, and `get_status()`. `write_state(updates: dict)` silently merges any dict with no validation. The key schema is implicit everywhere.
+
+**Deepening:** Typed `NASState` dataclass (or named accessor functions) that encodes all keys and defaults. `read_state()` returns `NASState`; callers can't typo a key. All defaults live in one place. Construct directly in tests — no state file needed.
+
+---
+
+### 3. `build_file_manifest()` — hidden state coupling
+
+**Files:** `system/apply_utils.py`
+
+`build_file_manifest()` takes no arguments but calls `read_state()` internally, making it untestable without a real state file on disk. The coupling between what keys it expects and what routes write is invisible.
+
+**Deepening:** `build_file_manifest(state: dict) -> list[dict]` — take state as an argument. Callers (`routes/summary.py`, `routes/apply.py`) read state and pass it in. The function becomes a pure transformation: hand any dict in a test, no file I/O needed.
+
+---
+
+### 4. `routes/nonraid.py` — HTTP + subprocess mixed into one layer
+
+**Files:** `routes/nonraid.py`, `system/nonraid_utils.py`
+
+`nonraid_utils.py` correctly wraps the non-streaming nmdctl commands, but the streaming install flow (PPA add + apt install) and the streaming create flow (`nmdctl create`) live entirely in the route. Those flows can only be exercised through HTTP.
+
+**Deepening:** Move install and create step sequences into `nonraid_utils.py` as generator functions that yield `str` event lines. The route wraps with `stream_with_context` only. Subprocess logic is testable by iterating the generator, without Flask. `nonraid_utils.py` becomes the deep module for all NonRAID operations.
+
+---
+
+### 5. `system/status.py` — omnibus function with three concerns
+
+**Files:** `system/status.py`, `routes/status.py`
+
+`get_status()` reads state to detect backend, calls per-panel probe functions (df, snapraid log, nmdctl, smb, nfs), and assembles the response dict. Adding a new panel (e.g. Docker) means editing the omnibus function — the assembly is not compositional.
+
+**Deepening:** Promote per-panel probes to a composable structure: a list of panel callables that `get_status()` iterates, each returning its own dict slice. Backend branching becomes a panel-selection step, not an inline branch. New panels (Docker) are additive — no existing function needs editing.
