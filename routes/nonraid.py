@@ -70,9 +70,8 @@ def set_nonraid_config():
     except ValueError as exc:
         msg = str(exc)
         if msg.startswith("invalid filesystem|"):
-            valid = msg.split("|", 1)[1].split(",")
-            return jsonify({"error": "invalid filesystem", "valid": valid}), 400
-        return jsonify({"error": msg}), 400
+            return jsonify({"error": "invalid filesystem"}), 400
+        return jsonify({"error": "invalid configuration"}), 400
     write_known_state(updates)
     return jsonify({"ok": True}), 200
 
