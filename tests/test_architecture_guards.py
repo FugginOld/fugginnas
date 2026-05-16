@@ -328,6 +328,35 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
+def test_status_composition_guard_ast_rejects_nested_subscript_shares_fixture():
+    bad = """
+def get_status():
+    state = {}
+    shares_status = build_shares_status(state)
+    status = {}
+    status["pool"] = build_pool_status(state)
+    status["shares"] = shares_status["services"]["smbd"]
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "shares" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_rejects_chained_call_fixture():
+    bad = """
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = build_pool_status(state).copy()
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
 def test_status_get_status_composes_panel_builders():
     src = STATUS_FILE.read_text(encoding="utf-8")
     required_calls = [
