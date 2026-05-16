@@ -73,10 +73,26 @@ def test_get_summary_uses_explicit_state_with_pure_manifest_builder(client):
 
 # --- POST /api/apply ---
 
-def test_post_apply_returns_event_stream(client):
-    with patch("routes.apply.apply_all") as mock_apply, \
+
+def test_post_apply_uses_explicit_state_with_pure_manifest_builder(client):
+    fake_state = {"backend": "snapraid"}
+    fake_manifest = [{"path": "/etc/fstab", "content": "entry"}]
+    with patch("routes.apply.read_state", return_value=fake_state) as mock_read_state, \
+         patch("routes.apply.build_file_manifest_for_state", return_value=fake_manifest) as mock_pure_builder, \
+         patch("routes.apply.apply_all_for_state", return_value=[]), \
          patch("routes.apply.backup_fstab"), \
-         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=[]):
+        resp = client.post("/api/apply")
+        _ = resp.data
+
+    assert resp.status_code == 200
+    mock_read_state.assert_called_once()
+    mock_pure_builder.assert_called_once_with(fake_state)
+
+def test_post_apply_returns_event_stream(client):
+    with patch("routes.apply.apply_all_for_state") as mock_apply, \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
          patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
@@ -87,9 +103,9 @@ def test_post_apply_returns_event_stream(client):
 
 
 def test_post_apply_calls_apply_all(client):
-    with patch("routes.apply.apply_all") as mock_apply, \
+    with patch("routes.apply.apply_all_for_state") as mock_apply, \
          patch("routes.apply.backup_fstab"), \
-         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
          patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = []
@@ -99,10 +115,24 @@ def test_post_apply_calls_apply_all(client):
         mock_apply.assert_called_once()
 
 
-def test_post_apply_streams_file_paths(client):
-    with patch("routes.apply.apply_all") as mock_apply, \
+def test_post_apply_passes_explicit_state_to_apply_all_for_state(client):
+    fake_state = {"backend": "snapraid"}
+    with patch("routes.apply.read_state", return_value=fake_state), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
+         patch("routes.apply.apply_all_for_state", return_value=[]) as mock_apply_for_state, \
          patch("routes.apply.backup_fstab"), \
-         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.sse_subprocess", return_value=[]):
+        resp = client.post("/api/apply")
+        _ = resp.data
+
+    assert resp.status_code == 200
+    mock_apply_for_state.assert_called_once_with(fake_state)
+
+
+def test_post_apply_streams_file_paths(client):
+    with patch("routes.apply.apply_all_for_state") as mock_apply, \
+         patch("routes.apply.backup_fstab"), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
          patch("routes.apply.sse_subprocess", return_value=["data: systemctl enable FugginNAS-mover.timer: OK\n\n"]), \
          patch("subprocess.run") as mock_sub:
         mock_apply.return_value = ["/etc/snapraid.conf", "/usr/local/bin/FugginNAS-mover.sh"]
@@ -114,9 +144,9 @@ def test_post_apply_streams_file_paths(client):
 
 
 def test_post_apply_uses_sse_helper_for_snapraid_timers(client):
-    with patch("routes.apply.apply_all", return_value=[]), \
+    with patch("routes.apply.apply_all_for_state", return_value=[]), \
          patch("routes.apply.backup_fstab"), \
-         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
          patch("routes.apply.sse_subprocess", return_value=[]) as mock_sse:
         resp = client.post("/api/apply")
         _ = resp.data
@@ -146,9 +176,9 @@ def test_post_apply_preserves_snapraid_timer_error_sentinel_text(client):
         _ = error_msg
         return events[cmd[-1]]
 
-    with patch("routes.apply.apply_all", return_value=[]), \
+    with patch("routes.apply.apply_all_for_state", return_value=[]), \
          patch("routes.apply.backup_fstab"), \
-         patch("routes.apply.build_file_manifest", return_value=[]), \
+         patch("routes.apply.build_file_manifest_for_state", return_value=[]), \
          patch("routes.apply.sse_subprocess", side_effect=_fake_sse):
         resp = client.post("/api/apply")
         body = resp.data.decode()
