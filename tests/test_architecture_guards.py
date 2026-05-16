@@ -86,11 +86,12 @@ def _has_route_level_manifest_wrapper_usage(source: str) -> bool:
     return False
 
 
-def _status_composition_ast_violations(source: str) -> list[str]:
+def _status_composition_ast_violations(source: str, *, allow_interprocedural: bool = False) -> list[str]:
     """
     Lightweight semantic guard.
-    Scope is intentionally limited to intra-function provenance inside get_status().
-    This does not attempt cross-function or interprocedural data-flow verification.
+    Default scope is intra-function provenance inside get_status().
+    When allow_interprocedural=True, permit a constrained one-hop resolution for
+    local helper functions that immediately return canonical builder results.
     """
     tree = ast.parse(source)
     expected_builders = {
@@ -103,6 +104,12 @@ def _status_composition_ast_violations(source: str) -> list[str]:
     violations: list[str] = []
     seen: set[str] = set()
 
+    function_defs: dict[str, ast.FunctionDef] = {}
+    if allow_interprocedural:
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                function_defs[node.name] = node
+
     get_status = None
     for top_node in tree.body:
         if isinstance(top_node, ast.FunctionDef) and top_node.name == "get_status":
@@ -113,6 +120,63 @@ def _status_composition_ast_violations(source: str) -> list[str]:
 
     builder_vars: dict[str, str] = {}
 
+    def _function_return_builder_call(fn: ast.FunctionDef) -> str | None:
+        """
+        Resolve the returned builder provenance for a helper function.
+
+        Intentionally constrained:
+        - One-hop only (helper must return a canonical builder call or a simple name alias of one).
+        - Local function defs only (no imports/modules).
+        """
+        helper_builder_vars: dict[str, str] = {}
+
+        def _resolve_value(value: ast.AST) -> str | None:
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+                if value.func.id in expected_builders.values():
+                    return value.func.id
+                return None
+            if isinstance(value, ast.Name):
+                return helper_builder_vars.get(value.id)
+            return None
+
+        for stmt in fn.body:
+            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                continue  # docstring
+            if isinstance(stmt, ast.Return):
+                if stmt.value is None:
+                    return None
+                return _resolve_value(stmt.value)
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+                resolved = _resolve_value(stmt.value)
+                if resolved is not None:
+                    helper_builder_vars[stmt.targets[0].id] = resolved
+                continue
+            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
+                resolved = _resolve_value(stmt.value)
+                if resolved is not None:
+                    helper_builder_vars[stmt.target.id] = resolved
+                continue
+            # Anything else increases false positives; bail out.
+            return None
+
+        return None
+
+    def _resolve_any_builder_from_helper_call(value: ast.AST) -> str | None:
+        if not allow_interprocedural:
+            return None
+        if not (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)):
+            return None
+
+        helper_name = value.func.id
+        if helper_name in expected_builders.values():
+            return helper_name
+
+        helper_def = function_defs.get(helper_name)
+        if helper_def is None:
+            return None
+
+        return _function_return_builder_call(helper_def)
+
     def _is_builder_value(key: str, value: ast.AST) -> bool:
         # Accepted provenance is intentionally narrow:
         # - direct builder call
@@ -120,7 +184,10 @@ def _status_composition_ast_violations(source: str) -> list[str]:
         # - for "shares", a single-level ["shares"] subscript from build_shares_status(...)
         expected = expected_builders[key]
         if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
-            return value.func.id == expected
+            if value.func.id == expected:
+                return True
+            helper_builder = _resolve_any_builder_from_helper_call(value)
+            return helper_builder is not None and helper_builder == expected
         if isinstance(value, ast.Name):
             return builder_vars.get(value.id) == expected
         if key == "shares" and isinstance(value, ast.Subscript):
@@ -145,7 +212,8 @@ def _status_composition_ast_violations(source: str) -> list[str]:
             continue
 
         if isinstance(target, ast.Name) and isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
-            builder_vars[target.id] = value.func.id
+            resolved = _resolve_any_builder_from_helper_call(value)
+            builder_vars[target.id] = resolved or value.func.id
             continue
 
         if isinstance(target, ast.Name) and isinstance(value, ast.Name):
@@ -392,6 +460,43 @@ def get_status():
     return status
 """
     assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_allows_one_hop_helper_passthrough_when_enabled():
+    good = """
+def make_pool(state):
+    return build_pool_status(state)
+
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = make_pool(state)
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert _status_composition_ast_violations(good, allow_interprocedural=True) == []
+
+
+def test_status_composition_guard_ast_rejects_two_hop_helper_chain_even_when_enabled():
+    bad = """
+def pool_leaf(state):
+    return build_pool_status(state)
+
+def make_pool(state):
+    return pool_leaf(state)
+
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = make_pool(state)
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad, allow_interprocedural=True)
 
 
 def test_status_composition_guard_ast_allows_single_level_shares_subscript():
