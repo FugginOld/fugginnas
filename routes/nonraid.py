@@ -86,8 +86,8 @@ def post_nonraid_roles():
     parity_mode = state.get("nonraid_parity_mode", "single")
     try:
         updates = build_nonraid_roles_updates(parity_mode, parity_disks, data_disks)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+    except ValueError:
+        return jsonify({"error": "invalid nonraid roles configuration"}), 400
     write_known_state(updates)
     return jsonify({"ok": True}), 200
 
