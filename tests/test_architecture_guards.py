@@ -114,7 +114,7 @@ def _status_composition_ast_violations(source: str) -> list[str]:
                 if key not in targets:
                     continue
                 seen.add(key)
-                if isinstance(value_node, ast.Dict):
+                if not _is_builder_value(key, value_node):
                     violations.append(key)
             continue
 
@@ -273,6 +273,23 @@ def get_status():
     status["shares"] = build_shares_status(state)
     status["snapraid"] = build_snapraid_status(state)
     status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_rejects_dict_literal_name_bypass_fixture():
+    bad = """
+def get_status():
+    state = {}
+    build_pool_status(state)  # decoy call
+    pool_status = {"mount": "/mnt/pool"}
+    status = {
+        "pool": pool_status,
+        "shares": build_shares_status(state),
+        "snapraid": build_snapraid_status(state),
+        "nonraid": build_nonraid_status(state),
+    }
     return status
 """
     assert "pool" in _status_composition_ast_violations(bad)
