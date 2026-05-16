@@ -122,8 +122,8 @@ def post_nonraid_check():
     state = read_state()
     try:
         safe_mode = resolve_nonraid_check_mode(data.get("mode"), state)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+    except ValueError:
+        return jsonify({"error": "Invalid check mode."}), 400
     operation = build_nonraid_check_operation(safe_mode)
 
     def _stream():
