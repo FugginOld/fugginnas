@@ -295,6 +295,22 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
+def test_status_guard_allows_builder_provenance_in_status_dict_literal_fixture():
+    good = """
+def get_status():
+    state = {}
+    shares_status = build_shares_status(state)
+    status = {
+        "pool": build_pool_status(state),
+        "shares": shares_status["shares"],
+        "snapraid": build_snapraid_status(state),
+        "nonraid": build_nonraid_status(state),
+    }
+    return status
+"""
+    assert _status_composition_ast_violations(good) == []
+
+
 def test_status_composition_guard_ast_rejects_cross_function_passthrough_fixture():
     bad = """
 def make_pool(state):
