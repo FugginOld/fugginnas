@@ -282,7 +282,7 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_rejects_dict_literal_name_bypass_fixture():
+def test_status_composition_guard_ast_rejects_dict_literal_name_bypass():
     bad = """
 def get_status():
     state = {}
@@ -299,7 +299,7 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_allows_builder_provenance_in_status_dict_literal_fixture():
+def test_status_composition_guard_ast_allows_builder_provenance_in_status_dict_literal():
     good = """
 def get_status():
     state = {}
@@ -315,7 +315,7 @@ def get_status():
     assert _status_composition_ast_violations(good) == []
 
 
-def test_status_composition_guard_ast_rejects_cross_function_passthrough_fixture():
+def test_status_composition_guard_ast_rejects_cross_function_passthrough():
     bad = """
 def make_pool(state):
     return build_pool_status(state)
@@ -332,7 +332,22 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_rejects_nested_subscript_shares_fixture():
+def test_status_composition_guard_ast_allows_single_level_shares_subscript():
+    good = """
+def get_status():
+    state = {}
+    shares_status = build_shares_status(state)
+    status = {}
+    status["pool"] = build_pool_status(state)
+    status["shares"] = shares_status["shares"]
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert _status_composition_ast_violations(good) == []
+
+
+def test_status_composition_guard_ast_rejects_nested_subscript_shares():
     bad = """
 def get_status():
     state = {}
@@ -348,7 +363,7 @@ def get_status():
     assert "shares" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_rejects_chained_call_fixture():
+def test_status_composition_guard_ast_rejects_chained_call():
     bad = """
 def get_status():
     state = {}
