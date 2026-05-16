@@ -6,7 +6,7 @@ from system.nonraid_utils import (
     build_nonraid_check_operation,
     build_nonraid_config_updates,
     build_nonraid_create_operation,
-    build_nonraid_install_commands,
+    build_nonraid_install_stream,
     build_nonraid_roles_updates,
     is_nonraid_installed,
     nmdctl_check,
@@ -37,14 +37,8 @@ def get_nonraid_install():
 @nonraid_bp.post("/api/nonraid/install")
 def post_nonraid_install():
     def _stream():
-        cmds = build_nonraid_install_commands()
-        for cmd in cmds:
-            yield f"data: Running: {' '.join(cmd)}\n\n"
-            for event in sse_subprocess(cmd, None, "ERROR (exit {returncode})"):
-                yield event
-                if event.startswith("data: ERROR (exit "):
-                    return
-        yield "data: NonRAID install complete\n\n"
+        for event in build_nonraid_install_stream():
+            yield event
 
     return Response(stream_with_context(_stream()), mimetype="text/event-stream")
 
