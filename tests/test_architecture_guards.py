@@ -71,6 +71,10 @@ def _status_composition_ast_violations(source: str) -> list[str]:
     builder_vars: dict[str, str] = {}
 
     def _is_builder_value(key: str, value: ast.AST) -> bool:
+        # Accepted provenance is intentionally narrow:
+        # - direct builder call
+        # - name alias that resolves to a builder call
+        # - for "shares", a single-level ["shares"] subscript from build_shares_status(...)
         expected = expected_builders[key]
         if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
             return value.func.id == expected
@@ -335,6 +339,7 @@ def get_status():
     shares_status = build_shares_status(state)
     status = {}
     status["pool"] = build_pool_status(state)
+    # Single-level shares_status["shares"] is allowed; deeper subscripts are not.
     status["shares"] = shares_status["services"]["smbd"]
     status["snapraid"] = build_snapraid_status(state)
     status["nonraid"] = build_nonraid_status(state)
