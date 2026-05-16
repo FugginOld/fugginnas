@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 
@@ -38,7 +39,50 @@ def _has_route_level_manifest_wrapper_usage(source: str) -> bool:
     - Disallow route-level calls to `build_file_manifest(...)` wrapper.
     - Allow explicit-state seam `build_file_manifest_for_state(...)`.
     """
-    return bool(re.search(r"\bbuild_file_manifest\s*\(", source))
+    tree = ast.parse(source)
+
+    direct_names = {"build_file_manifest"}
+    module_aliases = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "system.apply_utils":
+                for alias in node.names:
+                    if alias.name == "build_file_manifest":
+                        direct_names.add(alias.asname or alias.name)
+            if node.module == "system":
+                for alias in node.names:
+                    if alias.name == "apply_utils":
+                        module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "system.apply_utils":
+                    if alias.asname:
+                        module_aliases.add(alias.asname)
+                    else:
+                        module_aliases.add("system")
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        if isinstance(node.func, ast.Name) and node.func.id in direct_names:
+            return True
+
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "build_file_manifest":
+            owner = node.func.value
+            if isinstance(owner, ast.Name):
+                if owner.id in module_aliases:
+                    return True
+            elif (
+                isinstance(owner, ast.Attribute)
+                and isinstance(owner.value, ast.Name)
+                and owner.value.id == "system"
+                and owner.attr == "apply_utils"
+            ):
+                return True
+
+    return False
 
 
 def test_guard_detector_catches_known_old_inline_pattern_fixture():
@@ -70,6 +114,25 @@ def do_apply():
     manifest = build_file_manifest_for_state(state)
     return manifest
 """
+    assert _has_route_level_manifest_wrapper_usage(good_pattern) is False
+
+
+def test_manifest_wrapper_guard_catches_alias_import_pattern_fixture():
+    old_pattern = """
+import system.apply_utils as au
+def do_apply():
+    return au.build_file_manifest()
+"""
+    assert _has_route_level_manifest_wrapper_usage(old_pattern) is True
+
+
+def test_manifest_wrapper_guard_ignores_strings_and_comments_fixture():
+    good_pattern = '''
+def do_apply():
+    # build_file_manifest()
+    note = "build_file_manifest()"
+    return note
+'''
     assert _has_route_level_manifest_wrapper_usage(good_pattern) is False
 
 
