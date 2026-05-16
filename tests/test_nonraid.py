@@ -108,12 +108,14 @@ def test_post_nonraid_config_invalid_parity_mode(client):
     c, _ = client
     resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "parity_mode": "triple"})
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "invalid parity_mode"}
 
 
 def test_post_nonraid_config_invalid_filesystem(client):
     c, _ = client
     resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "filesystem": "ntfs"})
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "invalid filesystem", "valid": ["btrfs", "ext4", "xfs", "zfs"]}
 
 
 def test_post_nonraid_config_all_filesystems(client):
@@ -139,12 +141,14 @@ def test_post_nonraid_config_invalid_speed_limit_too_low(client):
     c, _ = client
     resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": 5})
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "check_speed_limit must be 10–1000 MB/s"}
 
 
 def test_post_nonraid_config_invalid_speed_limit_too_high(client):
     c, _ = client
     resp = c.post("/api/nonraid/config", json={**VALID_CONFIG, "check_speed_limit": 9999})
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "check_speed_limit must be 10–1000 MB/s"}
 
 
 def test_post_nonraid_config_speed_limit_boundary(client):
@@ -231,6 +235,7 @@ def test_post_nonraid_check_invalid_mode(client):
     c, _ = client
     resp = c.post("/api/nonraid/check", json={"mode": "BADMODE"})
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "mode must be CORRECT or NOCORRECT"}
 
 
 def test_post_nonraid_install_uses_install_command_builder(client):
@@ -357,6 +362,23 @@ def test_post_nonraid_check_uses_mode_and_operation_builders(client):
     mock_operation.assert_called_once_with("CORRECT")
 
 
+def test_post_nonraid_check_without_mode_falls_back_to_stored_preference(client, monkeypatch):
+    import routes.nonraid as nonraid_route
+    c, _ = client
+
+    monkeypatch.setattr(nonraid_route, "read_state", lambda: {"nonraid_check_correct": True})
+    monkeypatch.setattr(nonraid_route, "nmdctl_check", lambda _mode: object())
+    monkeypatch.setattr(
+        nonraid_route,
+        "sse_subprocess",
+        lambda *_args, **_kwargs: iter(["data: Check complete (exit 0)\n\n"]),
+    )
+
+    resp = c.post("/api/nonraid/check", json={})
+    assert resp.status_code == 200
+    assert resp.data.decode() == "data: Check complete (exit 0)\n\n"
+
+
 # ── /api/nonraid/check/status ─────────────────────────────────────────────────
 
 def test_get_nonraid_check_status_returns_200(client, monkeypatch):
@@ -424,6 +446,7 @@ def test_post_nonraid_roles_wrong_parity_count_single(client):
         "data_disks": ["/dev/sdd"],
     })
     assert resp.status_code == 400
+    assert resp.get_json() == {"error": "parity_mode 'single' requires exactly 1 parity disk(s)"}
 
 
 def test_post_nonraid_roles_zero_parity_single(client):

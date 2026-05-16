@@ -2,6 +2,13 @@ import json
 import subprocess
 
 
+class NonraidValidationError(ValueError):
+    def __init__(self, error: str, *, valid: list[str] | None = None) -> None:
+        super().__init__(error)
+        self.error = error
+        self.valid = valid
+
+
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True)
 
@@ -97,7 +104,7 @@ def resolve_nonraid_check_mode(payload_mode: str | None, state: dict) -> str:
     if payload_mode is not None:
         mode = payload_mode.upper()
         if mode not in {"CORRECT", "NOCORRECT"}:
-            raise ValueError("mode must be CORRECT or NOCORRECT")
+            raise NonraidValidationError("mode must be CORRECT or NOCORRECT")
         return mode
     return "CORRECT" if state.get("nonraid_check_correct") else "NOCORRECT"
 
@@ -123,11 +130,11 @@ def build_nonraid_config_updates(data: dict) -> dict:
     check_speed_limit = data.get("check_speed_limit", 200)
 
     if parity_mode not in valid_parity:
-        raise ValueError("invalid parity_mode")
+        raise NonraidValidationError("invalid parity_mode")
     if filesystem not in valid_fs:
-        raise ValueError(f"invalid filesystem|{','.join(sorted(valid_fs))}")
+        raise NonraidValidationError("invalid filesystem", valid=sorted(valid_fs))
     if not isinstance(check_speed_limit, int) or not (10 <= check_speed_limit <= 1000):
-        raise ValueError("check_speed_limit must be 10â€“1000 MB/s")
+        raise NonraidValidationError("check_speed_limit must be 10–1000 MB/s")
 
     return {
         "nonraid_parity_mode": parity_mode,
@@ -143,11 +150,11 @@ def build_nonraid_config_updates(data: dict) -> dict:
 def build_nonraid_roles_updates(parity_mode: str, parity_disks: list, data_disks: list) -> dict:
     expected = 2 if parity_mode == "dual" else 1
     if len(parity_disks) != expected:
-        raise ValueError(f"parity_mode '{parity_mode}' requires exactly {expected} parity disk(s)")
+        raise NonraidValidationError(f"parity_mode '{parity_mode}' requires exactly {expected} parity disk(s)")
     if not data_disks:
-        raise ValueError("at least one data disk is required")
+        raise NonraidValidationError("at least one data disk is required")
     if set(parity_disks) & set(data_disks):
-        raise ValueError("a disk cannot be assigned both parity and data roles")
+        raise NonraidValidationError("a disk cannot be assigned both parity and data roles")
     return {
         "nonraid_parity_disks": parity_disks,
         "nonraid_data_disks": data_disks,

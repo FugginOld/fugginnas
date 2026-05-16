@@ -2,6 +2,7 @@ from flask import Blueprint, Response, jsonify, request, stream_with_context
 
 from system.sse import sse_subprocess
 from system.nonraid_utils import (
+    NonraidValidationError,
     build_nonraid_check_operation,
     build_nonraid_config_updates,
     build_nonraid_create_operation,
@@ -67,11 +68,11 @@ def set_nonraid_config():
     data = request.get_json(silent=True) or {}
     try:
         updates = build_nonraid_config_updates(data)
-    except ValueError as exc:
-        msg = str(exc)
-        if msg.startswith("invalid filesystem|"):
-            return jsonify({"error": "invalid filesystem"}), 400
-        return jsonify({"error": "invalid configuration"}), 400
+    except NonraidValidationError as exc:
+        payload = {"error": exc.error}
+        if exc.valid is not None:
+            payload["valid"] = exc.valid
+        return jsonify(payload), 400
     write_known_state(updates)
     return jsonify({"ok": True}), 200
 
@@ -86,8 +87,8 @@ def post_nonraid_roles():
     parity_mode = state.get("nonraid_parity_mode", "single")
     try:
         updates = build_nonraid_roles_updates(parity_mode, parity_disks, data_disks)
-    except ValueError:
-        return jsonify({"error": "invalid nonraid roles configuration"}), 400
+    except NonraidValidationError as exc:
+        return jsonify({"error": exc.error}), 400
     write_known_state(updates)
     return jsonify({"ok": True}), 200
 
@@ -122,8 +123,8 @@ def post_nonraid_check():
     state = read_state()
     try:
         safe_mode = resolve_nonraid_check_mode(data.get("mode"), state)
-    except ValueError:
-        return jsonify({"error": "Invalid check mode."}), 400
+    except NonraidValidationError as exc:
+        return jsonify({"error": exc.error}), 400
     operation = build_nonraid_check_operation(safe_mode)
 
     def _stream():
