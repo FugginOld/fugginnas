@@ -299,7 +299,7 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_guard_allows_builder_provenance_in_status_dict_literal_fixture():
+def test_status_composition_guard_ast_allows_builder_provenance_in_status_dict_literal_fixture():
     good = """
 def get_status():
     state = {}
