@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+from system.sse import sse_subprocess
+
 
 class NonraidValidationError(ValueError):
     def __init__(self, error: str, *, valid: list[str] | None = None) -> None:
@@ -90,6 +92,21 @@ def build_nonraid_install_commands() -> list[list[str]]:
         ["apt-get", "update"],
         ["apt-get", "install", "-y", "linux-headers-amd64", "nonraid-dkms", "nonraid-tools"],
     ]
+
+
+def build_nonraid_install_stream(
+    *,
+    commands: list[list[str]] | None = None,
+    sse_runner=sse_subprocess,
+):
+    cmds = commands if commands is not None else build_nonraid_install_commands()
+    for cmd in cmds:
+        yield f"data: Running: {' '.join(cmd)}\n\n"
+        for event in sse_runner(cmd, None, "ERROR (exit {returncode})"):
+            yield event
+            if event.startswith("data: ERROR (exit "):
+                return
+    yield "data: NonRAID install complete\n\n"
 
 
 def build_nonraid_create_operation() -> dict[str, str | list[str]]:

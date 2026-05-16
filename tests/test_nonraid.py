@@ -240,53 +240,55 @@ def test_post_nonraid_check_invalid_mode(client):
 
 def test_post_nonraid_install_uses_install_command_builder(client):
     c, _ = client
-    expected_cmds = [["echo", "one"], ["echo", "two"]]
-
-    with patch("routes.nonraid.build_nonraid_install_commands", return_value=expected_cmds) as mock_builder, \
-         patch("routes.nonraid.sse_subprocess", return_value=["data: ok\n\n"]):
+    expected_events = ["data: Running: echo one\n\n", "data: ok\n\n", "data: NonRAID install complete\n\n"]
+    with patch("routes.nonraid.build_nonraid_install_stream", return_value=iter(expected_events)) as mock_builder:
         resp = c.post("/api/nonraid/install")
         body = resp.data.decode()
 
     assert resp.status_code == 200
-    assert body.startswith("data: Running: echo one\n\n")
+    assert body == "".join(expected_events)
     mock_builder.assert_called_once_with()
 
 
 def test_post_nonraid_install_uses_sse_helper_and_preserves_order(client):
     c, _ = client
-
-    def _fake_sse(cmd, done_msg, error_msg):
-        _ = done_msg
-        _ = error_msg
-        yield f"data: output for {cmd[0]}\n\n"
-
-    with patch("routes.nonraid.sse_subprocess", side_effect=_fake_sse) as mock_sse:
+    expected_events = [
+        "data: Running: apt-get install -y gpg\n\n",
+        "data: output for apt-get\n\n",
+        "data: NonRAID install complete\n\n",
+    ]
+    with patch("routes.nonraid.build_nonraid_install_stream", return_value=iter(expected_events)) as mock_stream:
         resp = c.post("/api/nonraid/install")
         body = resp.data.decode()
 
-    assert body.startswith("data: Running: apt-get install -y gpg\n\n")
-    assert "data: output for apt-get\n\n" in body
-    assert body.endswith("data: NonRAID install complete\n\n")
-    assert mock_sse.call_count == 5
+    assert body == "".join(expected_events)
+    mock_stream.assert_called_once_with()
 
 
 def test_post_nonraid_install_preserves_error_sentinel_and_stops(client):
     c, _ = client
-
-    def _fake_sse(cmd, done_msg, error_msg):
-        _ = done_msg
-        _ = error_msg
-        if cmd[0] == "apt-get" and "update" in cmd:
-            yield "data: ERROR (exit 4)\n\n"
-            return
-        yield "data: ok\n\n"
-
-    with patch("routes.nonraid.sse_subprocess", side_effect=_fake_sse):
+    expected_events = [
+        "data: Running: apt-get update\n\n",
+        "data: ERROR (exit 4)\n\n",
+    ]
+    with patch("routes.nonraid.build_nonraid_install_stream", return_value=iter(expected_events)):
         resp = c.post("/api/nonraid/install")
         body = resp.data.decode()
 
     assert "data: ERROR (exit 4)\n\n" in body
     assert "data: NonRAID install complete\n\n" not in body
+
+
+def test_post_nonraid_install_delegates_stream_to_operation_builder(client):
+    c, _ = client
+    expected_events = ["data: Running: x\n\n", "data: NonRAID install complete\n\n"]
+    with patch("routes.nonraid.build_nonraid_install_stream", return_value=iter(expected_events)) as mock_build:
+        resp = c.post("/api/nonraid/install")
+        body = resp.data.decode()
+
+    assert resp.status_code == 200
+    assert body == "".join(expected_events)
+    mock_build.assert_called_once_with()
 
 
 def test_post_nonraid_create_uses_operation_builder(client):

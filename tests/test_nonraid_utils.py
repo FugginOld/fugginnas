@@ -3,6 +3,7 @@ import subprocess
 import json
 
 from system.nonraid_utils import (
+    build_nonraid_install_stream,
     nmdctl_status,
     nmdctl_start,
     nmdctl_stop,
@@ -156,3 +157,22 @@ def test_is_nonraid_installed_false_when_dkms_fails():
     with patch("system.nonraid_utils._run",
                return_value=_make_proc(1, stdout="")):
         assert is_nonraid_installed() is False
+
+
+def test_build_nonraid_install_stream_preserves_order_and_completion():
+    cmds = [["echo", "one"], ["echo", "two"]]
+
+    def fake_sse(cmd, done_msg, error_msg):
+        _ = done_msg
+        _ = error_msg
+        yield f"data: output for {' '.join(cmd)}\n\n"
+
+    events = list(build_nonraid_install_stream(commands=cmds, sse_runner=fake_sse))
+
+    assert events == [
+        "data: Running: echo one\n\n",
+        "data: output for echo one\n\n",
+        "data: Running: echo two\n\n",
+        "data: output for echo two\n\n",
+        "data: NonRAID install complete\n\n",
+    ]
