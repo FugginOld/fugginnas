@@ -176,6 +176,18 @@ def test_post_nonraid_config_uses_write_known_state(client, monkeypatch):
     }]
 
 
+def test_post_nonraid_config_uses_config_update_builder(client):
+    c, _ = client
+    updates = {"nonraid_parity_mode": "single"}
+    with patch("routes.nonraid.build_nonraid_config_updates", return_value=updates) as mock_builder, \
+         patch("routes.nonraid.write_known_state") as mock_write:
+        resp = c.post("/api/nonraid/config", json=VALID_CONFIG)
+
+    assert resp.status_code == 200
+    mock_builder.assert_called_once_with(VALID_CONFIG)
+    mock_write.assert_called_once_with(updates)
+
+
 # ── /api/nonraid/start / stop / mount / unmount ───────────────────────────────
 
 def test_post_nonraid_start_ok(client, monkeypatch):
@@ -221,6 +233,20 @@ def test_post_nonraid_check_invalid_mode(client):
     assert resp.status_code == 400
 
 
+def test_post_nonraid_install_uses_install_command_builder(client):
+    c, _ = client
+    expected_cmds = [["echo", "one"], ["echo", "two"]]
+
+    with patch("routes.nonraid.build_nonraid_install_commands", return_value=expected_cmds) as mock_builder, \
+         patch("routes.nonraid.sse_subprocess", return_value=["data: ok\n\n"]):
+        resp = c.post("/api/nonraid/install")
+        body = resp.data.decode()
+
+    assert resp.status_code == 200
+    assert body.startswith("data: Running: echo one\n\n")
+    mock_builder.assert_called_once_with()
+
+
 def test_post_nonraid_install_uses_sse_helper_and_preserves_order(client):
     c, _ = client
 
@@ -258,6 +284,29 @@ def test_post_nonraid_install_preserves_error_sentinel_and_stops(client):
     assert "data: NonRAID install complete\n\n" not in body
 
 
+def test_post_nonraid_create_uses_operation_builder(client):
+    c, _ = client
+    operation = {
+        "cmd": ["echo", "create"],
+        "done_msg": "Array created successfully",
+        "error_msg": "ERROR (exit {returncode})",
+    }
+
+    with patch("routes.nonraid.build_nonraid_create_operation", return_value=operation) as mock_builder, \
+         patch("routes.nonraid.sse_subprocess", return_value=["data: Array created successfully\n\n"]) as mock_sse:
+        resp = c.post("/api/nonraid/create")
+        body = resp.data.decode()
+
+    assert resp.status_code == 200
+    assert body == "data: Array created successfully\n\n"
+    mock_builder.assert_called_once_with()
+    mock_sse.assert_called_once_with(
+        ["echo", "create"],
+        "Array created successfully",
+        "ERROR (exit {returncode})",
+    )
+
+
 def test_post_nonraid_create_success_and_error_sentinels(client):
     c, _ = client
 
@@ -282,6 +331,30 @@ def test_post_nonraid_check_stream_order_and_completion(client):
         body = resp.data.decode()
 
     assert body == "data: line one\n\ndata: Check complete (exit 0)\n\n"
+
+
+def test_post_nonraid_check_uses_mode_and_operation_builders(client):
+    c, _ = client
+    operation = {
+        "cmd": ["nmdctl", "check", "CORRECT"],
+        "done_msg": "Check complete (exit {returncode})",
+        "error_msg": "Check complete (exit {returncode})",
+    }
+    with patch("routes.nonraid.resolve_nonraid_check_mode", return_value="CORRECT") as mock_mode, \
+         patch("routes.nonraid.build_nonraid_check_operation", return_value=operation) as mock_operation, \
+         patch("routes.nonraid.nmdctl_check", return_value=object()) as mock_popen, \
+         patch("routes.nonraid.sse_subprocess", return_value=["data: Check complete (exit 0)\n\n"]) as mock_sse:
+        resp = c.post("/api/nonraid/check", json={"mode": "correct"})
+        body = resp.data.decode()
+        _, kwargs = mock_sse.call_args
+        factory = kwargs["popen_factory"]
+        factory(["ignored"])
+        mock_popen.assert_called_once_with("CORRECT")
+
+    assert resp.status_code == 200
+    assert body == "data: Check complete (exit 0)\n\n"
+    mock_mode.assert_called_once()
+    mock_operation.assert_called_once_with("CORRECT")
 
 
 # ── /api/nonraid/check/status ─────────────────────────────────────────────────
@@ -412,3 +485,23 @@ def test_post_nonraid_roles_uses_write_known_state(client, monkeypatch):
         "nonraid_parity_disks": ["/dev/sdb"],
         "nonraid_data_disks": ["/dev/sdc", "/dev/sdd"],
     }]
+
+
+def test_post_nonraid_roles_uses_roles_update_builder(client):
+    c, _ = client
+    updates = {"nonraid_parity_disks": ["/dev/sdb"], "nonraid_data_disks": ["/dev/sdc"]}
+    with patch("routes.nonraid.read_state", return_value={"nonraid_parity_mode": "single"}), \
+         patch("routes.nonraid.build_nonraid_roles_updates", return_value=updates) as mock_builder, \
+         patch("routes.nonraid.write_known_state") as mock_write:
+        resp = c.post("/api/nonraid/roles", json={
+            "parity_disks": ["/dev/sdb"],
+            "data_disks": ["/dev/sdc"],
+        })
+
+    assert resp.status_code == 200
+    mock_builder.assert_called_once_with(
+        "single",
+        ["/dev/sdb"],
+        ["/dev/sdc"],
+    )
+    mock_write.assert_called_once_with(updates)
