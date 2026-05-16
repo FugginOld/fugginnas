@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 
@@ -9,6 +10,7 @@ TARGETS = [
 ]
 ROUTES_DIR = _REPO_ROOT / "routes"
 WRITE_STATE_ALLOWLIST: set[str] = set()
+STATUS_FILE = _REPO_ROOT / "system" / "status.py"
 
 
 def _has_inline_sse_subprocess_loop(source: str) -> bool:
@@ -39,6 +41,106 @@ def _has_route_level_manifest_wrapper_usage(source: str) -> bool:
     - Allow explicit-state seam `build_file_manifest_for_state(...)`.
     """
     return bool(re.search(r"\bbuild_file_manifest\s*\(", source))
+
+
+def _status_composition_ast_violations(source: str) -> list[str]:
+    """
+    Lightweight semantic guard.
+    Scope is intentionally limited to intra-function provenance inside get_status().
+    This does not attempt cross-function or interprocedural data-flow verification.
+    """
+    tree = ast.parse(source)
+    expected_builders = {
+        "pool": "build_pool_status",
+        "shares": "build_shares_status",
+        "snapraid": "build_snapraid_status",
+        "nonraid": "build_nonraid_status",
+    }
+    targets = set(expected_builders.keys())
+    violations: list[str] = []
+    seen: set[str] = set()
+
+    get_status = None
+    for top_node in tree.body:
+        if isinstance(top_node, ast.FunctionDef) and top_node.name == "get_status":
+            get_status = top_node
+            break
+    if get_status is None:
+        return sorted(targets)
+
+    builder_vars: dict[str, str] = {}
+
+    def _is_builder_value(key: str, value: ast.AST) -> bool:
+        expected = expected_builders[key]
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            return value.func.id == expected
+        if isinstance(value, ast.Name):
+            return builder_vars.get(value.id) == expected
+        if key == "shares" and isinstance(value, ast.Subscript):
+            if (
+                isinstance(value.value, ast.Name)
+                and isinstance(value.slice, ast.Constant)
+                and value.slice.value == "shares"
+            ):
+                return builder_vars.get(value.value.id) == "build_shares_status"
+        return False
+
+    for stmt in get_status.body:
+        target = None
+        value = None
+        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
+            target = stmt.targets[0]
+            value = stmt.value
+        elif isinstance(stmt, ast.AnnAssign):
+            target = stmt.target
+            value = stmt.value
+        else:
+            continue
+
+        if isinstance(target, ast.Name) and isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            builder_vars[target.id] = value.func.id
+            continue
+
+        if isinstance(target, ast.Name) and isinstance(value, ast.Name):
+            if value.id in builder_vars:
+                builder_vars[target.id] = builder_vars[value.id]
+            continue
+
+        if isinstance(target, ast.Name) and target.id == "status" and isinstance(value, ast.Dict):
+            for key_node, value_node in zip(value.keys, value.values):
+                if not (isinstance(key_node, ast.Constant) and isinstance(key_node.value, str)):
+                    continue
+                key = key_node.value
+                if key not in targets:
+                    continue
+                seen.add(key)
+                if isinstance(value_node, ast.Dict):
+                    violations.append(key)
+            continue
+
+    for node in ast.walk(get_status):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Subscript):
+            continue
+        sub = node.targets[0]
+        if isinstance(sub, ast.Subscript):
+            if not (isinstance(sub.value, ast.Name) and sub.value.id == "status"):
+                continue
+            if not (isinstance(sub.slice, ast.Constant) and isinstance(sub.slice.value, str)):
+                continue
+            key = sub.slice.value
+            if key not in targets:
+                continue
+            seen.add(key)
+            if isinstance(node.value, ast.Dict):
+                violations.append(key)
+                continue
+            if not _is_builder_value(key, node.value):
+                violations.append(key)
+
+    for key in targets - seen:
+        violations.append(key)
+
+    return sorted(set(violations))
 
 
 def test_guard_detector_catches_known_old_inline_pattern_fixture():
@@ -98,3 +200,110 @@ def test_route_modules_do_not_use_manifest_wrapper():
         if _has_route_level_manifest_wrapper_usage(src):
             offenders.append(path.name)
     assert offenders == [], f"Route-level build_file_manifest wrapper usage detected: {offenders}"
+
+
+def test_status_composition_guard_ast_catches_inline_panel_fixture():
+    bad = """
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = {"mount": "/mnt/pool"}
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_allows_builder_fixture():
+    good = """
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = build_pool_status(state)
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert _status_composition_ast_violations(good) == []
+
+
+def test_status_composition_guard_ast_catches_non_builder_assignment_fixture():
+    bad = """
+def get_status():
+    state = {}
+    status = {}
+    pool_status = {"mount": "/mnt/pool"}
+    status["pool"] = pool_status
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_allows_local_alias_indirection_fixture():
+    good = """
+def get_status():
+    state = {}
+    status = {}
+    pool_panel = build_pool_status(state)
+    alias_1 = pool_panel
+    alias_2 = alias_1
+    status["pool"] = alias_2
+    shares_status = build_shares_status(state)
+    status["shares"] = shares_status["shares"]
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert _status_composition_ast_violations(good) == []
+
+
+def test_status_composition_guard_ast_rejects_unknown_helper_indirection_fixture():
+    bad = """
+def get_status():
+    state = {}
+    status = {}
+    helper = derive_pool_panel(state)
+    status["pool"] = helper
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_composition_guard_ast_rejects_cross_function_passthrough_fixture():
+    bad = """
+def make_pool(state):
+    return build_pool_status(state)
+
+def get_status():
+    state = {}
+    status = {}
+    status["pool"] = make_pool(state)
+    status["shares"] = build_shares_status(state)
+    status["snapraid"] = build_snapraid_status(state)
+    status["nonraid"] = build_nonraid_status(state)
+    return status
+"""
+    assert "pool" in _status_composition_ast_violations(bad)
+
+
+def test_status_get_status_composes_panel_builders():
+    src = STATUS_FILE.read_text(encoding="utf-8")
+    required_calls = [
+        "build_pool_status(state)",
+        "build_shares_status(state)",
+        "build_snapraid_status(state)",
+        "build_nonraid_status(state)",
+    ]
+    for call in required_calls:
+        assert call in src, f"Missing composition call in get_status(): {call}"
+
+    assert _status_composition_ast_violations(src) == []
