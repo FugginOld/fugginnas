@@ -106,9 +106,9 @@ def _status_composition_ast_violations(source: str, *, allow_interprocedural: bo
 
     function_defs: dict[str, ast.FunctionDef] = {}
     if allow_interprocedural:
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef):
-                function_defs[node.name] = node
+        for top_level_node in tree.body:
+            if isinstance(top_level_node, ast.FunctionDef):
+                function_defs[top_level_node.name] = top_level_node
 
     get_status = None
     for top_node in tree.body:
@@ -233,10 +233,14 @@ def _status_composition_ast_violations(source: str, *, allow_interprocedural: bo
                     violations.append(key)
             continue
 
-    for node in ast.walk(get_status):
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Subscript):
+    for walk_node in ast.walk(get_status):
+        if (
+            not isinstance(walk_node, ast.Assign)
+            or len(walk_node.targets) != 1
+            or not isinstance(walk_node.targets[0], ast.Subscript)
+        ):
             continue
-        sub = node.targets[0]
+        sub = walk_node.targets[0]
         if isinstance(sub, ast.Subscript):
             if not (isinstance(sub.value, ast.Name) and sub.value.id == "status"):
                 continue
@@ -246,10 +250,10 @@ def _status_composition_ast_violations(source: str, *, allow_interprocedural: bo
             if key not in targets:
                 continue
             seen.add(key)
-            if isinstance(node.value, ast.Dict):
+            if isinstance(walk_node.value, ast.Dict):
                 violations.append(key)
                 continue
-            if not _is_builder_value(key, node.value):
+            if not _is_builder_value(key, walk_node.value):
                 violations.append(key)
 
     for key in targets - seen:
