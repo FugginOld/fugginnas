@@ -282,7 +282,7 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_rejects_dict_literal_name_bypass():
+def test_status_composition_guard_ast_rejects_dict_literal_via_name_alias():
     bad = """
 def get_status():
     state = {}
@@ -299,7 +299,7 @@ def get_status():
     assert "pool" in _status_composition_ast_violations(bad)
 
 
-def test_status_composition_guard_ast_allows_builder_provenance_in_status_dict_literal():
+def test_status_composition_guard_ast_allows_subscript_from_builder_result():
     good = """
 def get_status():
     state = {}
