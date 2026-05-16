@@ -135,8 +135,13 @@ def build_file_manifest() -> list[dict]:
 
 
 def apply_all() -> list[str]:
-    """Write every file from the manifest to disk. Returns list of written paths."""
-    manifest = build_file_manifest()
+    """Compatibility wrapper that reads state before writing files."""
+    return apply_all_for_state(read_state())
+
+
+def apply_all_for_state(state: dict) -> list[str]:
+    """Write every file for an explicit state dict. Returns list of written paths."""
+    manifest = build_file_manifest_for_state(state)
     written = []
     for entry in manifest:
         path_str = entry["path"]

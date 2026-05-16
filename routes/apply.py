@@ -1,6 +1,6 @@
 from flask import Blueprint, Response, stream_with_context
 
-from system.apply_utils import apply_all, backup_fstab, build_file_manifest
+from system.apply_utils import apply_all_for_state, backup_fstab, build_file_manifest_for_state
 from system.sse import sse_subprocess
 from system.state import read_state
 
@@ -11,7 +11,7 @@ apply_bp = Blueprint("apply", __name__)
 def do_apply():
     def _stream():
         state = read_state()
-        manifest = build_file_manifest()
+        manifest = build_file_manifest_for_state(state)
         paths = [e["path"] for e in manifest]
 
         yield f"data: Starting apply ({len(paths)} files)\n\n"
@@ -21,7 +21,7 @@ def do_apply():
             backup_fstab("/etc/fstab")
             yield "data: OK\n\n"
 
-        written = apply_all()
+        written = apply_all_for_state(state)
 
         for path in written:
             yield f"data: Wrote {path}\n\n"
