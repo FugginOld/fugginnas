@@ -74,6 +74,23 @@ def test_post_pool_default_write_policy_is_mfs(client):
     assert state["write_policy"] == "mfs"
 
 
+def test_post_pool_uses_write_known_state(client, monkeypatch):
+    import routes.pool as pool_route
+
+    c, _ = client
+    calls = []
+
+    def fake_write_known_state(payload):
+        calls.append(payload)
+
+    monkeypatch.setattr("routes.pool.write_known_state", fake_write_known_state)
+    assert not hasattr(pool_route, "write_state")
+
+    resp = c.post("/api/pool", json=VALID_POOL_CONFIG)
+    assert resp.status_code == 200
+    assert calls == [VALID_POOL_CONFIG]
+
+
 # --- mergerfs mount string builder ---
 
 def test_build_mergerfs_mount_string():

@@ -4,7 +4,7 @@ import tempfile
 from flask import Blueprint, jsonify, request
 
 from system.snapraid_conf import generate_conf
-from system.state import read_state, write_state
+from system.state import read_state, write_known_state
 
 snapraid_bp = Blueprint("snapraid", __name__)
 
@@ -31,7 +31,7 @@ def set_snapraid():
     if scrub_schedule not in _VALID_SCRUB:
         return jsonify({"error": "invalid scrub_schedule", "valid": sorted(_VALID_SCRUB)}), 400
 
-    write_state({
+    write_known_state({
         "snapraid_parity_mode": parity_mode,
         "snapraid_parity_disks": parity_disks,
         "snapraid_data_mounts": data_mounts,

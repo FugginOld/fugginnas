@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from system.state import write_state
+from system.state import write_known_state
 
 pool_bp = Blueprint("pool", __name__)
 
@@ -25,7 +25,7 @@ def set_pool():
     if write_policy not in _VALID_WRITE_POLICIES:
         return jsonify({"error": "invalid write_policy", "valid": sorted(_VALID_WRITE_POLICIES)}), 400
 
-    write_state({
+    write_known_state({
         "pool_mount": pool_mount,
         "cache_mount": cache_mount,
         "data_mounts": data_mounts,

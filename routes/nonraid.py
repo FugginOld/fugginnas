@@ -11,7 +11,7 @@ from system.nonraid_utils import (
     nmdctl_unmount,
     parse_nmdstat,
 )
-from system.state import read_state, write_state
+from system.state import read_state, write_known_state
 
 nonraid_bp = Blueprint("nonraid", __name__)
 
@@ -95,7 +95,7 @@ def set_nonraid_config():
     if not isinstance(check_speed_limit, int) or not (10 <= check_speed_limit <= 1000):
         return jsonify({"error": "check_speed_limit must be 10–1000 MB/s"}), 400
 
-    write_state({
+    write_known_state({
         "nonraid_parity_mode": parity_mode,
         "nonraid_filesystem": filesystem,
         "nonraid_luks": luks,
@@ -124,7 +124,7 @@ def post_nonraid_roles():
     if set(parity_disks) & set(data_disks):
         return jsonify({"error": "a disk cannot be assigned both parity and data roles"}), 400
 
-    write_state({
+    write_known_state({
         "nonraid_parity_disks": parity_disks,
         "nonraid_data_disks": data_disks,
     })

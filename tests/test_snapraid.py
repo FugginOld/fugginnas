@@ -70,6 +70,26 @@ def test_post_snapraid_missing_parity_disks_returns_400(client):
     assert resp.status_code == 400
 
 
+def test_post_snapraid_uses_write_known_state(client, monkeypatch):
+    c, _ = client
+    calls = []
+
+    def fake_write_known_state(payload):
+        calls.append(payload)
+
+    monkeypatch.setattr("routes.snapraid.write_known_state", fake_write_known_state)
+    resp = c.post("/api/snapraid", json=VALID_SNAPRAID_CONFIG)
+
+    assert resp.status_code == 200
+    assert calls == [{
+        "snapraid_parity_mode": "single",
+        "snapraid_parity_disks": ["/mnt/parity1"],
+        "snapraid_data_mounts": ["/mnt/disk1", "/mnt/disk2"],
+        "snapraid_sync_time": "02:00",
+        "snapraid_scrub_schedule": "weekly",
+    }]
+
+
 # --- snapraid.conf generator ---
 
 def test_generate_conf_single_parity():

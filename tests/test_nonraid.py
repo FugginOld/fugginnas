@@ -154,6 +154,28 @@ def test_post_nonraid_config_speed_limit_boundary(client):
         assert resp.status_code == 200
 
 
+def test_post_nonraid_config_uses_write_known_state(client, monkeypatch):
+    c, _ = client
+    calls = []
+
+    def fake_write_known_state(payload):
+        calls.append(payload)
+
+    monkeypatch.setattr("routes.nonraid.write_known_state", fake_write_known_state)
+    resp = c.post("/api/nonraid/config", json=VALID_CONFIG)
+
+    assert resp.status_code == 200
+    assert calls == [{
+        "nonraid_parity_mode": "single",
+        "nonraid_filesystem": "xfs",
+        "nonraid_luks": False,
+        "nonraid_turbo_write": False,
+        "nonraid_check_schedule": "quarterly",
+        "nonraid_check_correct": False,
+        "nonraid_check_speed_limit": 200,
+    }]
+
+
 # ── /api/nonraid/start / stop / mount / unmount ───────────────────────────────
 
 def test_post_nonraid_start_ok(client, monkeypatch):
@@ -369,3 +391,24 @@ def test_post_nonraid_roles_overlap_rejected(client):
         "data_disks": ["/dev/sdb"],
     })
     assert resp.status_code == 400
+
+
+def test_post_nonraid_roles_uses_write_known_state(client, monkeypatch):
+    _set_parity_mode(client, "single")
+    c, _ = client
+    calls = []
+
+    def fake_write_known_state(payload):
+        calls.append(payload)
+
+    monkeypatch.setattr("routes.nonraid.write_known_state", fake_write_known_state)
+    resp = c.post("/api/nonraid/roles", json={
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc", "/dev/sdd"],
+    })
+
+    assert resp.status_code == 200
+    assert calls == [{
+        "nonraid_parity_disks": ["/dev/sdb"],
+        "nonraid_data_disks": ["/dev/sdc", "/dev/sdd"],
+    }]

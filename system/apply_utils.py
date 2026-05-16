@@ -11,7 +11,6 @@ from system.systemd import (
     mover_units,
     snapraid_scrub_units,
     snapraid_sync_units,
-    write_units,
 )
 
 _FSTAB_MARKER = "# FugginNAS mergerfs"
@@ -57,9 +56,8 @@ def _append_or_update_fstab(fstab_path: str, entry: str) -> None:
             f.write(entry)
 
 
-def build_file_manifest() -> list[dict]:
+def build_file_manifest_for_state(state: dict) -> list[dict]:
     """Return list of {path, content} dicts for every file the apply step will write."""
-    state = read_state()
     files = []
 
     if state.get("backend") == "snapraid":
@@ -129,6 +127,11 @@ def build_file_manifest() -> list[dict]:
         files.append({"path": "/etc/exports", "content": "\n".join(nfs_lines)})
 
     return files
+
+
+def build_file_manifest() -> list[dict]:
+    """Compatibility wrapper that reads state from disk before building manifest."""
+    return build_file_manifest_for_state(read_state())
 
 
 def apply_all() -> list[str]:

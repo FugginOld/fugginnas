@@ -59,6 +59,18 @@ def test_get_summary_includes_content_preview(client):
     assert len(snapraid_entry["content"]) > 0
 
 
+def test_get_summary_uses_explicit_state_with_pure_manifest_builder(client):
+    expected_files = [{"path": "/tmp/example", "content": "ok"}]
+    with patch("routes.summary.read_state", return_value={"backend": "snapraid"}) as mock_read_state, \
+         patch("routes.summary.build_file_manifest_for_state", return_value=expected_files) as mock_pure_builder:
+        resp = client.get("/api/summary")
+
+    assert resp.status_code == 200
+    assert resp.get_json()["files"] == expected_files
+    mock_read_state.assert_called_once()
+    mock_pure_builder.assert_called_once_with({"backend": "snapraid"})
+
+
 # --- POST /api/apply ---
 
 def test_post_apply_returns_event_stream(client):

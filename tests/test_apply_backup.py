@@ -1,8 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
-import pytest
 
-from system.apply_utils import backup_fstab, apply_all
+from system.apply_utils import backup_fstab, apply_all, build_file_manifest, build_file_manifest_for_state
 
 
 def test_backup_fstab_copies_when_source_exists(tmp_path):
@@ -34,3 +33,39 @@ def test_apply_all_calls_backup_fstab(tmp_path, monkeypatch):
          patch("pathlib.Path.write_text"):
         apply_all()
     mock_backup.assert_called_once_with("/etc/fstab")
+
+
+def test_build_file_manifest_for_state_builds_without_read_state(monkeypatch):
+    state = {
+        "backend": "snapraid",
+        "pool_mount": "/mnt/pool",
+        "cache_mount": "/mnt/cache",
+        "data_mounts": ["/mnt/disk1"],
+        "write_policy": "mfs",
+        "snapraid_parity_mode": "single",
+        "snapraid_parity_disks": ["/mnt/parity1"],
+        "snapraid_data_mounts": ["/mnt/disk1"],
+    }
+    monkeypatch.setattr("system.apply_utils.read_state", lambda: (_ for _ in ()).throw(RuntimeError("should not be called")))
+    files = build_file_manifest_for_state(state)
+    paths = [f["path"] for f in files]
+    assert "/etc/fstab" in paths
+    assert "/etc/snapraid.conf" in paths
+
+
+def test_build_file_manifest_wrapper_matches_pure_function(tmp_path, monkeypatch):
+    state_path = tmp_path / "state.json"
+    monkeypatch.setenv("FUGGINNAS_STATE", str(state_path))
+    from system.state import write_state
+
+    state = {
+        "backend": "mergerfs",
+        "pool_mount": "/mnt/pool",
+        "cache_mount": "/mnt/cache",
+        "data_mounts": ["/mnt/disk1"],
+        "write_policy": "mfs",
+    }
+    write_state(state)
+    wrapper = build_file_manifest()
+    pure = build_file_manifest_for_state(state)
+    assert wrapper == pure

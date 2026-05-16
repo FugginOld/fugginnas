@@ -1,5 +1,3 @@
-import pytest
-
 from system.systemd import (
     mover_units,
     snapraid_scrub_units,

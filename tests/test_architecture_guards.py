@@ -7,6 +7,8 @@ TARGETS = [
     _REPO_ROOT / "routes/apply.py",
     _REPO_ROOT / "routes/nonraid.py",
 ]
+ROUTES_DIR = _REPO_ROOT / "routes"
+WRITE_STATE_ALLOWLIST: set[str] = set()
 
 
 def _has_inline_sse_subprocess_loop(source: str) -> bool:
@@ -50,3 +52,12 @@ def test_no_inline_sse_subprocess_loops_in_target_routes():
         if _has_inline_sse_subprocess_loop(src):
             offenders.append(str(path))
     assert offenders == [], f"Inline SSE subprocess loop(s) detected in: {offenders}"
+
+
+def test_route_modules_direct_write_state_usage_is_allowlisted():
+    offenders = []
+    for path in sorted(ROUTES_DIR.glob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        if re.search(r"\bwrite_state\s*\(", src) and path.name not in WRITE_STATE_ALLOWLIST:
+            offenders.append(path.name)
+    assert offenders == [], f"Direct write_state usage in non-allowlisted routes: {offenders}"
