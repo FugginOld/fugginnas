@@ -131,30 +131,22 @@ def _snapraid_dirty_count() -> int | None:
         return None
 
 
-def get_status() -> dict:
-    state = read_state()
+def build_pool_status(state: dict) -> dict:
     pool_mount = state.get("pool_mount", "/mnt/pool")
-    cache_mount = state.get("cache_mount", "/mnt/cache")
-    backend = get_backend(state)
-    theme = get_theme(state)
-
     pool_usage = _df_usage(pool_mount)
-    cache_usage = _df_usage(cache_mount)
+    return {
+        "mount": pool_mount,
+        "mounted": _is_mounted(pool_mount),
+        "used_pct": pool_usage["used_pct"],
+        "available_bytes": pool_usage["available_bytes"],
+    }
 
+
+def build_shares_status(state: dict) -> dict:
     shares = state.get("shares", [])
     has_smb = any(s.get("protocol") in ("smb", "both") for s in shares)
     has_nfs = any(s.get("protocol") in ("nfs", "both") for s in shares)
-
-    status: dict = {
-        "backend": backend,
-        "theme": theme,
-        "pool": {
-            "mount": pool_mount,
-            "mounted": _is_mounted(pool_mount),
-            "used_pct": pool_usage["used_pct"],
-            "available_bytes": pool_usage["available_bytes"],
-        },
-        "cache_fill_pct": cache_usage["used_pct"],
+    return {
         "services": {
             "smbd": _service_active("smbd") if has_smb else None,
             "nfs_server": _service_active("nfs-server") if has_nfs else None,
@@ -162,19 +154,49 @@ def get_status() -> dict:
         "shares": [_live_share(s) for s in shares],
     }
 
+
+def build_snapraid_status(state: dict) -> dict:
+    _ = state
+    return {
+        "sync": _parse_snapraid_log(_SYNC_LOG),
+        "scrub": _parse_snapraid_log(_SCRUB_LOG),
+        "dirty_files": _snapraid_dirty_count(),
+    }
+
+
+def build_nonraid_status(state: dict) -> dict:
+    nmd = nmdctl_status()
+    return {
+        "state": nmd.get("state"),
+        "parity_disks": state.get("nonraid_parity_disks", []),
+        "data_disks": state.get("nonraid_data_disks", []),
+    }
+
+
+def get_status() -> dict:
+    state = read_state()
+    cache_mount = state.get("cache_mount", "/mnt/cache")
+    backend = get_backend(state)
+    theme = get_theme(state)
+
+    pool_status = build_pool_status(state)
+    cache_usage = _df_usage(cache_mount)
+
+    shares_status = build_shares_status(state)
+
+    status: dict = {
+        "backend": backend,
+        "theme": theme,
+        "pool": pool_status,
+        "cache_fill_pct": cache_usage["used_pct"],
+        "services": shares_status["services"],
+        "shares": shares_status["shares"],
+    }
+
     if backend == "snapraid":
-        status["snapraid"] = {
-            "sync": _parse_snapraid_log(_SYNC_LOG),
-            "scrub": _parse_snapraid_log(_SCRUB_LOG),
-            "dirty_files": _snapraid_dirty_count(),
-        }
+        status["snapraid"] = build_snapraid_status(state)
 
     if backend == "nonraid":
-        nmd = nmdctl_status()
-        status["nonraid"] = {
-            "state": nmd.get("state"),
-            "parity_disks": state.get("nonraid_parity_disks", []),
-            "data_disks": state.get("nonraid_data_disks", []),
-        }
+        status["nonraid"] = build_nonraid_status(state)
 
     return status

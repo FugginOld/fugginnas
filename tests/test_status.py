@@ -84,6 +84,19 @@ def test_get_status_pool_has_mount_and_usage(client):
     assert "used_pct" in pool
 
 
+def test_get_status_uses_pool_panel_builder(client):
+    fake_pool = {"mount": "/mnt/custom", "mounted": True, "used_pct": 10, "available_bytes": 123}
+    with patch("system.status.build_pool_status", return_value=fake_pool) as mock_pool, \
+         patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = client.get("/api/status")
+        data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["pool"] == fake_pool
+    args, _ = mock_pool.call_args
+    assert args[0] == FULL_STATE
+
+
 def test_get_status_has_cache_fill_pct(client):
     with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
         resp = client.get("/api/status")
@@ -148,10 +161,65 @@ def test_nonraid_status_includes_data_disks(nonraid_client):
     assert resp.get_json()["nonraid"]["data_disks"] == ["/dev/sdc", "/dev/sdd"]
 
 
+def test_get_status_uses_nonraid_panel_builder(nonraid_client):
+    fake_nonraid = {"state": "STARTED", "parity_disks": ["/dev/sdb"], "data_disks": ["/dev/sdc"]}
+    with patch("system.status.build_nonraid_status", return_value=fake_nonraid) as mock_builder, \
+         patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = nonraid_client.get("/api/status")
+        data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["nonraid"] == fake_nonraid
+    args, _ = mock_builder.call_args
+    assert args[0] == NONRAID_STATE
+
+
+def test_build_nonraid_status_wires_nmd_and_state_disks():
+    state = {
+        "nonraid_parity_disks": ["/dev/sdb"],
+        "nonraid_data_disks": ["/dev/sdc", "/dev/sdd"],
+    }
+    with patch("system.status.nmdctl_status", return_value={"state": "STOPPED"}) as mock_nmd:
+        out = __import__("system.status", fromlist=["build_nonraid_status"]).build_nonraid_status(state)
+
+    assert out == {
+        "state": "STOPPED",
+        "parity_disks": ["/dev/sdb"],
+        "data_disks": ["/dev/sdc", "/dev/sdd"],
+    }
+    mock_nmd.assert_called_once_with()
+
+
 def test_snapraid_backend_has_no_nonraid_key(client):
     with patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
         resp = client.get("/api/status")
     assert "nonraid" not in resp.get_json()
+
+
+def test_get_status_uses_snapraid_panel_builder(client):
+    fake_snapraid = {"sync": {"last_run": "x"}, "scrub": {"last_run": "y"}, "dirty_files": 7}
+    with patch("system.status.build_snapraid_status", return_value=fake_snapraid) as mock_builder, \
+         patch("system.status.subprocess.run", return_value=_mock_run(DF_OUTPUT)):
+        resp = client.get("/api/status")
+        data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["snapraid"] == fake_snapraid
+    args, _ = mock_builder.call_args
+    assert args[0] == FULL_STATE
+
+
+def test_build_snapraid_status_wires_logs_and_dirty_count():
+    state = {"backend": "snapraid"}
+    sync = {"last_run": "sync"}
+    scrub = {"last_run": "scrub"}
+    with patch("system.status._parse_snapraid_log", side_effect=[sync, scrub]) as mock_parse, \
+         patch("system.status._snapraid_dirty_count", return_value=3) as mock_dirty:
+        out = __import__("system.status", fromlist=["build_snapraid_status"]).build_snapraid_status(state)
+
+    assert out == {"sync": sync, "scrub": scrub, "dirty_files": 3}
+    assert mock_parse.call_count == 2
+    mock_dirty.assert_called_once_with()
 
 
 # ── Live share status ─────────────────────────────────────────────────────────
@@ -204,6 +272,20 @@ def test_shares_status_has_services_key(shares_client):
     with patch("system.status.subprocess.run", side_effect=_patch_shares()):
         data = shares_client.get("/api/status").get_json()
     assert "services" in data
+
+
+def test_get_status_uses_shares_panel_builder(shares_client):
+    fake_services = {"smbd": True, "nfs_server": False}
+    fake_shares = [{"name": "media", "path_exists": True, "smb_reachable": True}]
+    with patch("system.status.build_shares_status", return_value={"services": fake_services, "shares": fake_shares}) as mock_builder, \
+         patch("system.status.subprocess.run", side_effect=_patch_shares()):
+        resp = shares_client.get("/api/status")
+        data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["services"] == fake_services
+    assert data["shares"] == fake_shares
+    mock_builder.assert_called_once()
 
 
 def test_shares_status_smbd_running(shares_client):
